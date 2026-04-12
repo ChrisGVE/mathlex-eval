@@ -10,6 +10,8 @@ pub(crate) mod broadcast;
 pub mod compiler;
 pub mod error;
 pub mod eval;
+#[cfg(feature = "ffi")]
+pub mod ffi;
 
 pub use compiler::compile;
 pub use compiler::ir::CompiledExpr;

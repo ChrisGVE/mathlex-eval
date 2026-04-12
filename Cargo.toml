@@ -17,7 +17,7 @@ readme = "README.md"
 crate-type = ["staticlib", "cdylib", "lib"]
 
 [dependencies]
-mathlex = "0.3"
+mathlex = { version = "0.3", features = ["serde"] }
 num-complex = { version = "0.4", features = ["serde"] }
 ndarray = "0.16"
 thiserror = "2"
@@ -29,7 +29,7 @@ rayon = { version = "1.10", optional = true }
 
 [features]
 default = ["serde"]
-ffi = ["swift-bridge"]
+ffi = ["swift-bridge", "serde"]
 serde = ["dep:serde", "dep:serde_json"]
 parallel = ["rayon"]
 
