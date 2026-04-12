@@ -7,5 +7,7 @@
 //! then evaluates it with variable substitution and broadcasting support.
 
 pub mod error;
+pub mod eval;
 
 pub use error::{CompileError, EvalError};
+pub use eval::NumericResult;
