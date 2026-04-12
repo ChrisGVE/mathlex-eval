@@ -18,7 +18,7 @@ crate-type = ["staticlib", "cdylib", "lib"]
 
 [dependencies]
 mathlex = "0.3"
-num-complex = "0.4"
+num-complex = { version = "0.4", features = ["serde"] }
 ndarray = "0.16"
 thiserror = "2"
 ordered-float = "4"

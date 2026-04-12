@@ -3,6 +3,7 @@ use std::ops::{Add, Div, Mul, Neg, Sub};
 
 /// Result of evaluating a compiled expression — either a real or complex number.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum NumericResult {
     Real(f64),
     Complex(Complex<f64>),

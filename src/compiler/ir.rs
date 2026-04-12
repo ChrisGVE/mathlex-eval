@@ -3,6 +3,7 @@
 /// Opaque to callers — only inspectable via [`argument_names`](Self::argument_names)
 /// and [`is_complex`](Self::is_complex).
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CompiledExpr {
     pub(crate) root: CompiledNode,
     pub(crate) argument_names: Vec<String>,
@@ -23,6 +24,7 @@ impl CompiledExpr {
 
 /// Internal IR node — not exposed in public API.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub(crate) enum CompiledNode {
     /// Real literal (constant-folded)
     Literal(f64),
@@ -69,6 +71,7 @@ pub(crate) enum CompiledNode {
 
 /// Binary arithmetic operators supported by the evaluator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub(crate) enum BinaryOp {
     Add,
     Sub,
@@ -80,6 +83,7 @@ pub(crate) enum BinaryOp {
 
 /// Unary operators supported by the evaluator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub(crate) enum UnaryOp {
     Neg,
     Factorial,
@@ -87,6 +91,7 @@ pub(crate) enum UnaryOp {
 
 /// Built-in math functions recognized by the compiler.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub(crate) enum BuiltinFn {
     Sin,
     Cos,
