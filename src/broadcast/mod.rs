@@ -116,16 +116,32 @@ pub(crate) fn eval_broadcast(
 ) -> Result<(Vec<Result<NumericResult, EvalError>>, Vec<usize>), EvalError> {
     let (shape, axis_args) = compute_shape(resolved);
     let total = total_elements(&shape);
-    let mut results = Vec::with_capacity(total);
 
-    for flat in 0..total {
-        let multi = flat_to_multi(flat, &shape);
-        let args = build_args_for_index(resolved, &axis_args, &multi);
-        let result = scalar::eval_node(&expr.root, &args, &mut vec![]);
-        results.push(result);
+    #[cfg(feature = "parallel")]
+    {
+        use rayon::prelude::*;
+        let results: Vec<Result<NumericResult, EvalError>> = (0..total)
+            .into_par_iter()
+            .map(|flat| {
+                let multi = flat_to_multi(flat, &shape);
+                let args = build_args_for_index(resolved, &axis_args, &multi);
+                scalar::eval_node(&expr.root, &args, &mut vec![])
+            })
+            .collect();
+        return Ok((results, shape));
     }
 
-    Ok((results, shape))
+    #[cfg(not(feature = "parallel"))]
+    {
+        let mut results = Vec::with_capacity(total);
+        for flat in 0..total {
+            let multi = flat_to_multi(flat, &shape);
+            let args = build_args_for_index(resolved, &axis_args, &multi);
+            let result = scalar::eval_node(&expr.root, &args, &mut vec![]);
+            results.push(result);
+        }
+        Ok((results, shape))
+    }
 }
 
 /// Convert broadcast results into an ndarray.
