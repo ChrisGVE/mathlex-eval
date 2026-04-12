@@ -1,3 +1,4 @@
+pub(crate) mod functions;
 pub mod input;
 pub mod numeric;
 
