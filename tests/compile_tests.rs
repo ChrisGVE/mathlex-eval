@@ -56,7 +56,7 @@ fn compile_integer_literal() {
 
 #[test]
 fn compile_float_literal() {
-    let compiled = compile(&float(2.718), &no_constants()).unwrap();
+    let compiled = compile(&float(2.75), &no_constants()).unwrap();
     assert!(compiled.argument_names().is_empty());
     assert!(!compiled.is_complex());
 }

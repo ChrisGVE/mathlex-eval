@@ -245,8 +245,8 @@ mod tests {
 
     #[test]
     fn from_f64() {
-        let r: NumericResult = 3.14.into();
-        assert_eq!(r, NumericResult::Real(3.14));
+        let r: NumericResult = 2.75.into();
+        assert_eq!(r, NumericResult::Real(2.75));
     }
 
     #[test]

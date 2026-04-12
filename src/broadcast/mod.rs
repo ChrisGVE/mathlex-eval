@@ -2,6 +2,9 @@ use ndarray::ArrayD;
 
 use crate::compiler::ir::CompiledExpr;
 use crate::error::EvalError;
+
+/// Result type for broadcast evaluation: per-element results and output shape.
+pub(crate) type BroadcastResult = (Vec<Result<NumericResult, EvalError>>, Vec<usize>);
 use crate::eval::input::EvalInput;
 use crate::eval::numeric::NumericResult;
 use crate::eval::scalar;
@@ -113,35 +116,48 @@ pub(crate) fn build_args_for_index(
 pub(crate) fn eval_broadcast(
     expr: &CompiledExpr,
     resolved: &[ResolvedArg],
-) -> Result<(Vec<Result<NumericResult, EvalError>>, Vec<usize>), EvalError> {
+) -> Result<BroadcastResult, EvalError> {
     let (shape, axis_args) = compute_shape(resolved);
     let total = total_elements(&shape);
 
-    #[cfg(feature = "parallel")]
-    {
-        use rayon::prelude::*;
-        let results: Vec<Result<NumericResult, EvalError>> = (0..total)
-            .into_par_iter()
-            .map(|flat| {
-                let multi = flat_to_multi(flat, &shape);
-                let args = build_args_for_index(resolved, &axis_args, &multi);
-                scalar::eval_node(&expr.root, &args, &mut vec![])
-            })
-            .collect();
-        return Ok((results, shape));
-    }
+    let results = eval_broadcast_inner(expr, &shape, &axis_args, total, resolved);
+    Ok((results, shape))
+}
 
-    #[cfg(not(feature = "parallel"))]
-    {
-        let mut results = Vec::with_capacity(total);
-        for flat in 0..total {
-            let multi = flat_to_multi(flat, &shape);
-            let args = build_args_for_index(resolved, &axis_args, &multi);
-            let result = scalar::eval_node(&expr.root, &args, &mut vec![]);
-            results.push(result);
-        }
-        Ok((results, shape))
+#[cfg(feature = "parallel")]
+fn eval_broadcast_inner(
+    expr: &CompiledExpr,
+    shape: &[usize],
+    axis_args: &[usize],
+    total: usize,
+    resolved: &[ResolvedArg],
+) -> Vec<Result<NumericResult, EvalError>> {
+    use rayon::prelude::*;
+    (0..total)
+        .into_par_iter()
+        .map(|flat| {
+            let multi = flat_to_multi(flat, shape);
+            let args = build_args_for_index(resolved, axis_args, &multi);
+            scalar::eval_node(&expr.root, &args, &mut vec![])
+        })
+        .collect()
+}
+
+#[cfg(not(feature = "parallel"))]
+fn eval_broadcast_inner(
+    expr: &CompiledExpr,
+    shape: &[usize],
+    axis_args: &[usize],
+    total: usize,
+    resolved: &[ResolvedArg],
+) -> Vec<Result<NumericResult, EvalError>> {
+    let mut results = Vec::with_capacity(total);
+    for flat in 0..total {
+        let multi = flat_to_multi(flat, shape);
+        let args = build_args_for_index(resolved, axis_args, &multi);
+        results.push(scalar::eval_node(&expr.root, &args, &mut vec![]));
     }
+    results
 }
 
 /// Convert broadcast results into an ndarray.

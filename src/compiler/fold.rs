@@ -398,8 +398,8 @@ mod tests {
 
     #[test]
     fn fold_float_literal() {
-        let expr = fold(&float(3.14), &empty_constants()).unwrap();
-        assert!(matches!(expr.root, CompiledNode::Literal(v) if (v - 3.14).abs() < 1e-10));
+        let expr = fold(&float(2.75), &empty_constants()).unwrap();
+        assert!(matches!(expr.root, CompiledNode::Literal(v) if (v - 2.75).abs() < 1e-10));
     }
 
     #[test]

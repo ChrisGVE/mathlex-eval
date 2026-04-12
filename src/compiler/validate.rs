@@ -178,7 +178,7 @@ mod tests {
 
     #[test]
     fn accept_float() {
-        assert!(validate(&Expression::Float(MathFloat::from(3.14))).is_ok());
+        assert!(validate(&Expression::Float(MathFloat::from(2.75))).is_ok());
     }
 
     #[test]
