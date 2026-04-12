@@ -12,4 +12,4 @@ pub mod eval;
 
 pub use compiler::ir::CompiledExpr;
 pub use error::{CompileError, EvalError};
-pub use eval::NumericResult;
+pub use eval::{EvalInput, NumericResult};
