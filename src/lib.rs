@@ -6,6 +6,7 @@
 //! Compiles a mathlex `Expression` AST into an efficient internal representation,
 //! then evaluates it with variable substitution and broadcasting support.
 
+pub(crate) mod broadcast;
 pub mod compiler;
 pub mod error;
 pub mod eval;
