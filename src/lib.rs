@@ -6,8 +6,10 @@
 //! Compiles a mathlex `Expression` AST into an efficient internal representation,
 //! then evaluates it with variable substitution and broadcasting support.
 
+pub mod compiler;
 pub mod error;
 pub mod eval;
 
+pub use compiler::ir::CompiledExpr;
 pub use error::{CompileError, EvalError};
 pub use eval::NumericResult;
