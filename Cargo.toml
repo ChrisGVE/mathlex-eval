@@ -29,7 +29,7 @@ rayon = { version = "1.10", optional = true }
 
 [features]
 default = ["serde"]
-ffi = ["swift-bridge", "serde"]
+ffi = ["swift-bridge", "swift-bridge-build", "serde"]
 serde = ["dep:serde", "dep:serde_json"]
 parallel = ["rayon"]
 

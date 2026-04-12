@@ -4,3 +4,12 @@ Cargo.lock
 *.swp
 *.swo
 .DS_Store
+
+# Local-only
+.taskmaster/
+.build/
+.claude/
+tmp/
+initial_requirements.md
+CLAUDE.md
+CLAUDE.local.md

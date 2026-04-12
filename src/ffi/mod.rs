@@ -3,6 +3,8 @@
 //! Structured types cross the boundary as JSON. Streaming types
 //! (iterators) cross via callback adapters. Errors cross as strings.
 
+mod bridge;
+
 use std::collections::HashMap;
 
 use crate::{CompiledExpr, EvalHandle, EvalInput, EvalIter, NumericResult};

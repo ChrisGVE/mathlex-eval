@@ -14,43 +14,26 @@ pub(crate) fn validate(ast: &Expression) -> Result<(), CompileError> {
         | Expression::Variable(_)
         | Expression::Constant(_) => Ok(()),
 
-        // Rational: validate numerator and denominator
+        // Compound nodes — validate children recursively
         Expression::Rational {
             numerator,
             denominator,
-        } => {
-            validate(numerator)?;
-            validate(denominator)
-        }
+        } => validate(numerator).and(validate(denominator)),
 
-        // Complex: validate real and imaginary parts
-        Expression::Complex { real, imaginary } => {
-            validate(real)?;
-            validate(imaginary)
-        }
+        Expression::Complex { real, imaginary } => validate(real).and(validate(imaginary)),
 
-        // Binary: validate both operands (PlusMinus/MinusPlus rejected)
         Expression::Binary { op, left, right } => {
             validate_binary_op(*op)?;
-            validate(left)?;
-            validate(right)
+            validate(left).and(validate(right))
         }
 
-        // Unary: validate operand (Pos passes through, Transpose rejected)
         Expression::Unary { op, operand } => {
             validate_unary_op(*op)?;
             validate(operand)
         }
 
-        // Function: validate all arguments
-        Expression::Function { args, .. } => {
-            for arg in args {
-                validate(arg)?;
-            }
-            Ok(())
-        }
+        Expression::Function { args, .. } => args.iter().try_for_each(validate),
 
-        // Sum/Product: validate bounds and body
         Expression::Sum {
             lower, upper, body, ..
         }
@@ -58,65 +41,71 @@ pub(crate) fn validate(ast: &Expression) -> Result<(), CompileError> {
             lower, upper, body, ..
         } => {
             validate(lower)?;
-            validate(upper)?;
-            validate(body)
+            validate(upper).and(validate(body))
         }
 
-        // --- All non-numerical variants below ---
-        Expression::Quaternion { .. } => Err(unsupported("Quaternion", "not supported in v1")),
-        Expression::Vector(_) => Err(unsupported("Vector", "deferred to v1.x")),
-        Expression::Matrix(_) => Err(unsupported("Matrix", "deferred to v1.x")),
-        Expression::Equation { .. } => Err(unsupported("Equation", "relational, not numerical")),
-        Expression::Inequality { .. } => {
-            Err(unsupported("Inequality", "relational, not numerical"))
-        }
-        Expression::Derivative { .. } => Err(unsupported("Derivative", "requires symbolic engine")),
+        // All non-numerical variants
+        other => Err(reject(other)),
+    }
+}
+
+/// Map unsupported Expression variants to descriptive errors.
+fn reject(expr: &Expression) -> CompileError {
+    match expr {
+        Expression::Quaternion { .. } => unsupported("Quaternion", "not supported in v1"),
+        Expression::Vector(_) => unsupported("Vector", "deferred to v1.x"),
+        Expression::Matrix(_) => unsupported("Matrix", "deferred to v1.x"),
+        Expression::Equation { .. } => unsupported("Equation", "relational, not numerical"),
+        Expression::Inequality { .. } => unsupported("Inequality", "relational, not numerical"),
+        Expression::Derivative { .. } => unsupported("Derivative", "requires symbolic engine"),
         Expression::PartialDerivative { .. } => {
-            Err(unsupported("PartialDerivative", "requires symbolic engine"))
+            unsupported("PartialDerivative", "requires symbolic engine")
         }
-        Expression::Integral { .. } => Err(unsupported("Integral", "requires symbolic engine")),
+        Expression::Integral { .. } => unsupported("Integral", "requires symbolic engine"),
         Expression::MultipleIntegral { .. } => {
-            Err(unsupported("MultipleIntegral", "requires symbolic engine"))
+            unsupported("MultipleIntegral", "requires symbolic engine")
         }
         Expression::ClosedIntegral { .. } => {
-            Err(unsupported("ClosedIntegral", "requires symbolic engine"))
+            unsupported("ClosedIntegral", "requires symbolic engine")
         }
-        Expression::Limit { .. } => Err(unsupported("Limit", "requires symbolic engine")),
-        Expression::ForAll { .. } => Err(unsupported("ForAll", "logical quantifier")),
-        Expression::Exists { .. } => Err(unsupported("Exists", "logical quantifier")),
-        Expression::Logical { .. } => Err(unsupported("Logical", "logical expression")),
-        Expression::MarkedVector { .. } => Err(unsupported("MarkedVector", "vector notation")),
-        Expression::DotProduct { .. } => Err(unsupported("DotProduct", "deferred to v1.x")),
-        Expression::CrossProduct { .. } => Err(unsupported("CrossProduct", "deferred to v1.x")),
-        Expression::OuterProduct { .. } => Err(unsupported("OuterProduct", "deferred to v1.x")),
-        Expression::Gradient { .. } => Err(unsupported("Gradient", "requires symbolic engine")),
-        Expression::Divergence { .. } => Err(unsupported("Divergence", "requires symbolic engine")),
-        Expression::Curl { .. } => Err(unsupported("Curl", "requires symbolic engine")),
-        Expression::Laplacian { .. } => Err(unsupported("Laplacian", "requires symbolic engine")),
-        Expression::Nabla => Err(unsupported("Nabla", "operator without operand")),
-        Expression::Determinant { .. } => Err(unsupported("Determinant", "deferred to v1.x")),
-        Expression::Trace { .. } => Err(unsupported("Trace", "deferred to v1.x")),
-        Expression::Rank { .. } => Err(unsupported("Rank", "deferred to v1.x")),
+        Expression::Limit { .. } => unsupported("Limit", "requires symbolic engine"),
+        Expression::ForAll { .. } => unsupported("ForAll", "logical quantifier"),
+        Expression::Exists { .. } => unsupported("Exists", "logical quantifier"),
+        Expression::Logical { .. } => unsupported("Logical", "logical expression"),
+        Expression::MarkedVector { .. } => unsupported("MarkedVector", "vector notation"),
+        Expression::DotProduct { .. } => unsupported("DotProduct", "deferred to v1.x"),
+        Expression::CrossProduct { .. } => unsupported("CrossProduct", "deferred to v1.x"),
+        Expression::OuterProduct { .. } => unsupported("OuterProduct", "deferred to v1.x"),
+        Expression::Gradient { .. } => unsupported("Gradient", "requires symbolic engine"),
+        Expression::Divergence { .. } => unsupported("Divergence", "requires symbolic engine"),
+        Expression::Curl { .. } => unsupported("Curl", "requires symbolic engine"),
+        Expression::Laplacian { .. } => unsupported("Laplacian", "requires symbolic engine"),
+        Expression::Nabla => unsupported("Nabla", "operator without operand"),
+        Expression::Determinant { .. } => unsupported("Determinant", "deferred to v1.x"),
+        Expression::Trace { .. } => unsupported("Trace", "deferred to v1.x"),
+        Expression::Rank { .. } => unsupported("Rank", "deferred to v1.x"),
         Expression::ConjugateTranspose { .. } => {
-            Err(unsupported("ConjugateTranspose", "deferred to v1.x"))
+            unsupported("ConjugateTranspose", "deferred to v1.x")
         }
-        Expression::MatrixInverse { .. } => Err(unsupported("MatrixInverse", "deferred to v1.x")),
-        Expression::NumberSetExpr(_) => Err(unsupported("NumberSetExpr", "set theory")),
-        Expression::SetOperation { .. } => Err(unsupported("SetOperation", "set theory")),
-        Expression::SetRelationExpr { .. } => Err(unsupported("SetRelationExpr", "set theory")),
-        Expression::SetBuilder { .. } => Err(unsupported("SetBuilder", "set theory")),
-        Expression::EmptySet => Err(unsupported("EmptySet", "set theory")),
-        Expression::PowerSet { .. } => Err(unsupported("PowerSet", "set theory")),
-        Expression::Tensor { .. } => Err(unsupported("Tensor", "tensor notation")),
-        Expression::KroneckerDelta { .. } => Err(unsupported("KroneckerDelta", "tensor notation")),
-        Expression::LeviCivita { .. } => Err(unsupported("LeviCivita", "tensor notation")),
+        Expression::MatrixInverse { .. } => unsupported("MatrixInverse", "deferred to v1.x"),
+        Expression::NumberSetExpr(_) => unsupported("NumberSetExpr", "set theory"),
+        Expression::SetOperation { .. } => unsupported("SetOperation", "set theory"),
+        Expression::SetRelationExpr { .. } => unsupported("SetRelationExpr", "set theory"),
+        Expression::SetBuilder { .. } => unsupported("SetBuilder", "set theory"),
+        Expression::EmptySet => unsupported("EmptySet", "set theory"),
+        Expression::PowerSet { .. } => unsupported("PowerSet", "set theory"),
+        Expression::Tensor { .. } => unsupported("Tensor", "tensor notation"),
+        Expression::KroneckerDelta { .. } => unsupported("KroneckerDelta", "tensor notation"),
+        Expression::LeviCivita { .. } => unsupported("LeviCivita", "tensor notation"),
         Expression::FunctionSignature { .. } => {
-            Err(unsupported("FunctionSignature", "type declaration"))
+            unsupported("FunctionSignature", "type declaration")
         }
-        Expression::Composition { .. } => Err(unsupported("Composition", "function composition")),
-        Expression::Differential { .. } => Err(unsupported("Differential", "differential form")),
-        Expression::WedgeProduct { .. } => Err(unsupported("WedgeProduct", "differential form")),
-        Expression::Relation { .. } => Err(unsupported("Relation", "relational, not numerical")),
+        Expression::Composition { .. } => unsupported("Composition", "function composition"),
+        Expression::Differential { .. } => unsupported("Differential", "differential form"),
+        Expression::WedgeProduct { .. } => unsupported("WedgeProduct", "differential form"),
+        Expression::Relation { .. } => unsupported("Relation", "relational, not numerical"),
+        // Supported variants already matched in validate() — unreachable here
+        _ => unreachable!("supported variant reached reject()"),
     }
 }
 
