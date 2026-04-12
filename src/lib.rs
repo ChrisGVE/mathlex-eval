@@ -10,6 +10,7 @@ pub mod compiler;
 pub mod error;
 pub mod eval;
 
+pub use compiler::compile;
 pub use compiler::ir::CompiledExpr;
 pub use error::{CompileError, EvalError};
 pub use eval::{EvalInput, NumericResult};
