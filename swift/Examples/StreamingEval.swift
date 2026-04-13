@@ -1,20 +1,36 @@
 /// Streaming evaluation example.
 ///
-/// Demonstrates iterator input and lazy consumption via for-in.
+/// Demonstrates lazy consumption via the EvalIterator interface.
 ///
-/// Note: Requires swift-bridge FFI integration to run.
+/// Prerequisites:
+///   cargo build --release --features ffi
 
 import MathLexEval
 
-// In full integration, iterator input from Swift crosses FFI via callbacks:
-//
-// var index = 0
-// let values = [1.0, 2.0, 3.0, 4.0, 5.0]
-// let iter = MathEvaluator.makeIteratorInput {
-//     guard index < values.count else { return nil }
-//     defer { index += 1 }
-//     return values[index]
-// }
-//
-// The Rust side wraps the callback in SwiftIterAdapter and caches
-// values incrementally during evaluation.
+func streamingEvalExample() throws {
+    // AST JSON for: x^2 + 1
+    let astJson = """
+    {"Binary":{"op":"Add","left":{"Binary":{"op":"Pow","left":{"Variable":"x"},"right":{"Integer":2}}},"right":{"Integer":1}}}
+    """
+
+    let expr = try MathEvaluator.compile(json: astJson)
+
+    // Create handle with array input
+    let handle = try MathEvaluator.createHandle(
+        expr,
+        args: ["x": .array([1, 2, 3, 4, 5])]
+    )
+
+    print("x^2 + 1 for x = 1..5:")
+
+    // Consume lazily via iterator — conforms to Sequence
+    for (i, result) in handle.makeIterator().enumerated() {
+        let x = i + 1
+        switch result {
+        case .success(let val):
+            print("  f(\(x)) = \(val)")
+        case .failure(let err):
+            print("  f(\(x)) = ERROR: \(err)")
+        }
+    }
+}
