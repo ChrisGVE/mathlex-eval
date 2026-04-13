@@ -5,6 +5,9 @@ Cargo.lock
 *.swo
 .DS_Store
 
+# Build artifacts
+generated/
+
 # Local-only
 .taskmaster/
 .build/
