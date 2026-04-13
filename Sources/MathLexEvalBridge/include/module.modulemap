@@ -1,0 +1,5 @@
+module MathLexEvalBridge {
+    header "SwiftBridgeCore.h"
+    header "mathlex-eval.h"
+    export *
+}

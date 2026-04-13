@@ -1,17 +1,12 @@
-// swift-tools-version:5.9
+// swift-tools-version: 5.9
 
 import PackageDescription
-
-// NOTE: Before building, run:
-//   cargo build --release --features ffi
-// This generates the Swift bridge files in ./generated and the static
-// library in ./target/release/libmathlex_eval.a
 
 let package = Package(
     name: "MathLexEval",
     platforms: [
-        .macOS(.v13),
         .iOS(.v16),
+        .macOS(.v13),
         .watchOS(.v9),
         .tvOS(.v16),
         .visionOS(.v1),
@@ -23,27 +18,32 @@ let package = Package(
         ),
     ],
     targets: [
-        // Swift convenience wrapper
-        .target(
-            name: "MathLexEval",
-            dependencies: ["MathLexEvalBridge"],
-            path: "swift/Sources/MathLexEval"
-        ),
-        // Generated swift-bridge code + Rust static library linkage
+        // C headers for the swift-bridge FFI symbols
         .target(
             name: "MathLexEvalBridge",
-            path: "generated",
-            publicHeadersPath: ".",
-            cSettings: [
-                .headerSearchPath("."),
-                .headerSearchPath("mathlex-eval"),
-            ],
+            dependencies: [],
+            path: "Sources/MathLexEvalBridge",
+            publicHeadersPath: "include"
+        ),
+
+        // Generated swift-bridge Swift bindings + Rust static library linkage
+        .target(
+            name: "MathLexEvalRust",
+            dependencies: ["MathLexEvalBridge"],
+            path: "Sources/MathLexEvalRust",
             linkerSettings: [
                 .unsafeFlags([
                     "-L", "target/release",
                     "-lmathlex_eval",
                 ]),
             ]
+        ),
+
+        // Swift wrapper providing idiomatic Swift API
+        .target(
+            name: "MathLexEval",
+            dependencies: ["MathLexEvalRust"],
+            path: "Sources/MathLexEval"
         ),
     ]
 )

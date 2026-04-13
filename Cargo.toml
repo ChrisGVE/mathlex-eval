@@ -12,9 +12,14 @@ homepage = "https://github.com/ChrisGVE/mathlex-eval"
 keywords = ["math", "evaluator", "ast", "broadcasting", "numerical"]
 categories = ["mathematics", "science"]
 readme = "README.md"
+[lib]
+crate-type = ["staticlib", "cdylib", "lib"]
+
 exclude = [
     "generated/",
     "swift/",
+    "Sources/",
+    "scripts/",
     "Package.swift",
     ".spi.yml",
     "docs/",

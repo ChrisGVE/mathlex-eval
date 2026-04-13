@@ -1,0 +1,67 @@
+name: Swift Release
+
+on:
+  push:
+    tags:
+      - "v*"
+      - "[0-9]+.[0-9]+.[0-9]+*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-xcframework:
+    name: Build XCFramework
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Normalize tag to v-prefix
+        id: tag
+        run: |
+          RAW_TAG=${GITHUB_REF#refs/tags/}
+          if [[ "$RAW_TAG" =~ ^v ]]; then
+            TAG="$RAW_TAG"
+          else
+            TAG="v${RAW_TAG}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios,aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build XCFramework
+        run: |
+          chmod +x scripts/build-xcframework.sh
+          ./scripts/build-xcframework.sh
+
+      - name: Zip XCFramework
+        run: |
+          cd target/xcframework
+          zip -r MathLexEval.xcframework.zip MathLexEval.xcframework
+
+      - name: Calculate checksum
+        id: checksum
+        run: |
+          CHECKSUM=$(shasum -a 256 target/xcframework/MathLexEval.xcframework.zip | cut -d' ' -f1)
+          echo "checksum=$CHECKSUM" >> $GITHUB_OUTPUT
+
+      - name: Upload XCFramework to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          files: target/xcframework/MathLexEval.xcframework.zip
+
+      - name: Output checksum
+        run: |
+          echo "## XCFramework Checksum" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "SHA-256: \`${{ steps.checksum.outputs.checksum }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Use this checksum in Package.swift for binary target verification." >> $GITHUB_STEP_SUMMARY
