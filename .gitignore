@@ -6,13 +6,9 @@ Cargo.lock
 .DS_Store
 
 # Build artifacts
+.build/
 generated/
 
-# Local-only
-.taskmaster/
-.build/
-.claude/
-tmp/
-initial_requirements.md
+# Crate-local CLAUDE.md (crate-specific instructions kept local per open-source convention)
 CLAUDE.md
 CLAUDE.local.md
