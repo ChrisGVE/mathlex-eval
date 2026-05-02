@@ -19,19 +19,19 @@
 //!
 //! ```rust
 //! use std::collections::HashMap;
-//! use mathlex::{BinaryOp, Expression};
+//! use mathlex::{BinaryOp, ExprKind, Expression};
 //! use mathlex_eval::{compile, eval, EvalInput};
 //!
 //! // Build AST for: 2*x + 3
-//! let ast = Expression::Binary {
+//! let ast = ExprKind::Binary {
 //!     op: BinaryOp::Add,
-//!     left: Box::new(Expression::Binary {
+//!     left: Box::new(ExprKind::Binary {
 //!         op: BinaryOp::Mul,
-//!         left: Box::new(Expression::Integer(2)),
-//!         right: Box::new(Expression::Variable("x".into())),
-//!     }),
-//!     right: Box::new(Expression::Integer(3)),
-//! };
+//!         left: Box::new(Expression::integer(2)),
+//!         right: Box::new(Expression::variable("x")),
+//!     }.into()),
+//!     right: Box::new(Expression::integer(3)),
+//! }.into();
 //!
 //! let compiled = compile(&ast, &HashMap::new()).unwrap();
 //!

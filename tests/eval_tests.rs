@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use approx::assert_abs_diff_eq;
-use mathlex::{BinaryOp, Expression, MathConstant};
+use mathlex::{BinaryOp, ExprKind, Expression, MathConstant};
 
 use mathlex_eval::{EvalError, EvalInput, NumericResult, compile, eval};
 
@@ -10,26 +10,28 @@ use mathlex_eval::{EvalError, EvalInput, NumericResult, compile, eval};
 // ---------------------------------------------------------------------------
 
 fn int(v: i64) -> Expression {
-    Expression::Integer(v)
+    Expression::integer(v)
 }
 
 fn var(name: &str) -> Expression {
-    Expression::Variable(name.into())
+    Expression::variable(name)
 }
 
 fn binop(op: BinaryOp, left: Expression, right: Expression) -> Expression {
-    Expression::Binary {
+    ExprKind::Binary {
         op,
         left: Box::new(left),
         right: Box::new(right),
     }
+    .into()
 }
 
 fn func(name: &str, args: Vec<Expression>) -> Expression {
-    Expression::Function {
+    ExprKind::Function {
         name: name.into(),
         args,
     }
+    .into()
 }
 
 fn no_constants() -> HashMap<&'static str, NumericResult> {
@@ -135,7 +137,7 @@ fn builtin_sin_pi_over_2() {
         "sin",
         vec![binop(
             BinaryOp::Div,
-            Expression::Constant(MathConstant::Pi),
+            Expression::constant(MathConstant::Pi),
             int(2),
         )],
     );
@@ -166,7 +168,7 @@ fn builtin_exp_one() {
 #[test]
 fn builtin_ln_e() {
     // ln(e) = 1
-    let ast = func("ln", vec![Expression::Constant(MathConstant::E)]);
+    let ast = func("ln", vec![Expression::constant(MathConstant::E)]);
     assert_abs_diff_eq!(eval_const(&ast), 1.0, epsilon = 1e-10);
 }
 
@@ -182,10 +184,13 @@ fn builtin_abs_negative() {
     // abs(-5) = 5
     let ast = func(
         "abs",
-        vec![Expression::Unary {
-            op: mathlex::UnaryOp::Neg,
-            operand: Box::new(int(5)),
-        }],
+        vec![
+            ExprKind::Unary {
+                op: mathlex::UnaryOp::Neg,
+                operand: Box::new(int(5)),
+            }
+            .into(),
+        ],
     );
     assert_abs_diff_eq!(eval_const(&ast), 5.0, epsilon = 1e-10);
 }
@@ -230,10 +235,11 @@ fn builtin_log10_thousand() {
 
 #[test]
 fn rational_three_quarters() {
-    let ast = Expression::Rational {
+    let ast = ExprKind::Rational {
         numerator: Box::new(int(3)),
         denominator: Box::new(int(4)),
-    };
+    }
+    .into();
     assert_abs_diff_eq!(eval_const(&ast), 0.75, epsilon = 1e-15);
 }
 
@@ -256,12 +262,13 @@ fn nested_sin_x_squared_plus_one() {
 
 #[test]
 fn sum_one_to_five() {
-    let ast = Expression::Sum {
+    let ast = ExprKind::Sum {
         index: "k".into(),
         lower: Box::new(int(1)),
         upper: Box::new(int(5)),
         body: Box::new(var("k")),
-    };
+    }
+    .into();
     assert_abs_diff_eq!(eval_const(&ast), 15.0, epsilon = 1e-10);
 }
 
@@ -271,12 +278,13 @@ fn sum_one_to_five() {
 
 #[test]
 fn product_one_to_four() {
-    let ast = Expression::Product {
+    let ast = ExprKind::Product {
         index: "k".into(),
         lower: Box::new(int(1)),
         upper: Box::new(int(4)),
         body: Box::new(var("k")),
-    };
+    }
+    .into();
     assert_abs_diff_eq!(eval_const(&ast), 24.0, epsilon = 1e-10);
 }
 

@@ -5,21 +5,25 @@
 
 use std::collections::HashMap;
 
-use mathlex::{BinaryOp, Expression};
+use mathlex::{BinaryOp, ExprKind, Expression};
 
 use mathlex_eval::{EvalInput, compile, eval};
 
 fn main() {
     // Build AST for: x^2 + 1
-    let ast = Expression::Binary {
+    let ast = ExprKind::Binary {
         op: BinaryOp::Add,
-        left: Box::new(Expression::Binary {
-            op: BinaryOp::Pow,
-            left: Box::new(Expression::Variable("x".into())),
-            right: Box::new(Expression::Integer(2)),
-        }),
-        right: Box::new(Expression::Integer(1)),
-    };
+        left: Box::new(
+            ExprKind::Binary {
+                op: BinaryOp::Pow,
+                left: Box::new(Expression::variable("x")),
+                right: Box::new(Expression::integer(2)),
+            }
+            .into(),
+        ),
+        right: Box::new(Expression::integer(1)),
+    }
+    .into();
 
     let compiled = compile(&ast, &HashMap::new()).expect("compilation failed");
 
@@ -43,11 +47,12 @@ fn main() {
 
     // Demonstrate mixed iterator + scalar broadcasting
     println!("\n--- Mixed iterator + scalar ---");
-    let ast2 = Expression::Binary {
+    let ast2 = ExprKind::Binary {
         op: BinaryOp::Mul,
-        left: Box::new(Expression::Variable("scale".into())),
-        right: Box::new(Expression::Variable("x".into())),
-    };
+        left: Box::new(Expression::variable("scale")),
+        right: Box::new(Expression::variable("x")),
+    }
+    .into();
     let compiled2 = compile(&ast2, &HashMap::new()).expect("compilation failed");
 
     let stream = (1..=5).map(|i| i as f64);

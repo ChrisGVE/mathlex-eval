@@ -9,7 +9,7 @@
 
 use std::collections::HashMap;
 
-use mathlex::{BinaryOp, Expression, MathFloat, UnaryOp};
+use mathlex::{BinaryOp, ExprKind, Expression, MathFloat, UnaryOp};
 use mathlex_eval::{EvalInput, NumericResult, compile, eval};
 use proptest::prelude::*;
 
@@ -46,10 +46,10 @@ fn small_i64() -> impl Strategy<Value = i64> {
 /// Leaf AST: Integer, Float, or Variable("x").
 fn leaf_ast() -> impl Strategy<Value = Expression> {
     prop_oneof![
-        small_i64().prop_map(Expression::Integer),
-        finite_f64().prop_map(|v| Expression::Float(MathFloat::from(v))),
+        small_i64().prop_map(|v| Expression::integer(v)),
+        finite_f64().prop_map(|v| Expression::float(MathFloat::from(v))),
         // Variable "x" is the single free argument used in all strategies
-        Just(Expression::Variable("x".into())),
+        Just(Expression::variable("x")),
     ]
 }
 
@@ -77,17 +77,23 @@ fn ast_strategy(depth: u32) -> impl Strategy<Value = Expression> {
         ast_strategy(depth - 1),
         ast_strategy(depth - 1),
     )
-        .prop_map(|(op, left, right)| Expression::Binary {
-            op,
-            left: Box::new(left),
-            right: Box::new(right),
+        .prop_map(|(op, left, right)| {
+            ExprKind::Binary {
+                op,
+                left: Box::new(left),
+                right: Box::new(right),
+            }
+            .into()
         })
         .boxed();
 
     let unary_neg = ast_strategy(depth - 1)
-        .prop_map(|operand| Expression::Unary {
-            op: UnaryOp::Neg,
-            operand: Box::new(operand),
+        .prop_map(|operand| {
+            ExprKind::Unary {
+                op: UnaryOp::Neg,
+                operand: Box::new(operand),
+            }
+            .into()
         })
         .boxed();
 
@@ -102,11 +108,12 @@ fn ast_strategy(depth: u32) -> impl Strategy<Value = Expression> {
 /// Simple binary AST of the form `x op literal` — one free variable, one literal.
 fn simple_binary_ast() -> impl Strategy<Value = (Expression, BinaryOp, f64)> {
     (safe_binary_op(), finite_f64()).prop_map(|(op, lit)| {
-        let ast = Expression::Binary {
+        let ast = ExprKind::Binary {
             op,
-            left: Box::new(Expression::Variable("x".into())),
-            right: Box::new(Expression::Float(MathFloat::from(lit))),
-        };
+            left: Box::new(Expression::variable("x")),
+            right: Box::new(Expression::float(MathFloat::from(lit))),
+        }
+        .into();
         (ast, op, lit)
     })
 }
@@ -121,14 +128,14 @@ fn array_pair_sizes() -> impl Strategy<Value = (usize, usize)> {
 // ---------------------------------------------------------------------------
 
 fn naive_eval(ast: &Expression, x: f64) -> Option<f64> {
-    match ast {
-        Expression::Integer(n) => Some(*n as f64),
-        Expression::Float(f) => {
+    match &ast.kind {
+        mathlex::ExprKind::Integer(n) => Some(*n as f64),
+        mathlex::ExprKind::Float(f) => {
             let v = f64::from(*f);
             if v.is_finite() { Some(v) } else { None }
         }
-        Expression::Variable(name) if name == "x" => Some(x),
-        Expression::Binary { op, left, right } => {
+        mathlex::ExprKind::Variable(name) if name == "x" => Some(x),
+        mathlex::ExprKind::Binary { op, left, right } => {
             let l = naive_eval(left, x)?;
             let r = naive_eval(right, x)?;
             match op {
@@ -156,7 +163,7 @@ fn naive_eval(ast: &Expression, x: f64) -> Option<f64> {
                 _ => None,
             }
         }
-        Expression::Unary { op, operand } => {
+        mathlex::ExprKind::Unary { op, operand } => {
             let v = naive_eval(operand, x)?;
             match op {
                 UnaryOp::Neg => Some(-v),
@@ -280,11 +287,12 @@ proptest! {
         x_vals in prop::collection::vec(finite_f64(), 1..=16),
     ) {
         // Use a fixed, always-valid expression: x * x
-        let ast = Expression::Binary {
+        let ast = ExprKind::Binary {
             op: BinaryOp::Mul,
-            left: Box::new(Expression::Variable("x".into())),
-            right: Box::new(Expression::Variable("x".into())),
-        };
+            left: Box::new(Expression::variable("x")),
+            right: Box::new(Expression::variable("x")),
+        }
+        .into();
         let compiled = compile(&ast, &no_constants()).unwrap();
 
         let make_args = || {
@@ -396,11 +404,12 @@ proptest! {
         x_base in finite_f64(),
         y_base in finite_f64(),
     ) {
-        let ast = Expression::Binary {
+        let ast = ExprKind::Binary {
             op: BinaryOp::Add,
-            left: Box::new(Expression::Variable("x".into())),
-            right: Box::new(Expression::Variable("y".into())),
-        };
+            left: Box::new(Expression::variable("x")),
+            right: Box::new(Expression::variable("y")),
+        }
+        .into();
         let compiled = compile(&ast, &no_constants()).unwrap();
 
         let x_vals: Vec<f64> = (0..n).map(|i| x_base + i as f64).collect();
@@ -427,15 +436,19 @@ proptest! {
         c in 1_usize..=5,
     ) {
         // x + y + z
-        let ast = Expression::Binary {
+        let ast = ExprKind::Binary {
             op: BinaryOp::Add,
-            left: Box::new(Expression::Binary {
-                op: BinaryOp::Add,
-                left: Box::new(Expression::Variable("x".into())),
-                right: Box::new(Expression::Variable("y".into())),
-            }),
-            right: Box::new(Expression::Variable("z".into())),
-        };
+            left: Box::new(
+                ExprKind::Binary {
+                    op: BinaryOp::Add,
+                    left: Box::new(Expression::variable("x")),
+                    right: Box::new(Expression::variable("y")),
+                }
+                .into(),
+            ),
+            right: Box::new(Expression::variable("z")),
+        }
+        .into();
         let compiled = compile(&ast, &no_constants()).unwrap();
 
         let x_vals: Vec<f64> = (0..a).map(|i| i as f64).collect();
@@ -466,11 +479,12 @@ proptest! {
         x_val in finite_f64(),
         y_val in finite_f64(),
     ) {
-        let ast = Expression::Binary {
+        let ast = ExprKind::Binary {
             op: BinaryOp::Add,
-            left: Box::new(Expression::Variable("x".into())),
-            right: Box::new(Expression::Variable("y".into())),
-        };
+            left: Box::new(Expression::variable("x")),
+            right: Box::new(Expression::variable("y")),
+        }
+        .into();
         let compiled = compile(&ast, &no_constants()).unwrap();
 
         // Insert x first, then y.
@@ -507,11 +521,12 @@ proptest! {
         x_vals in prop::collection::vec(finite_f64(), 1..=8),
         y_vals in prop::collection::vec(finite_f64(), 1..=8),
     ) {
-        let ast = Expression::Binary {
+        let ast = ExprKind::Binary {
             op: BinaryOp::Add,
-            left: Box::new(Expression::Variable("x".into())),
-            right: Box::new(Expression::Variable("y".into())),
-        };
+            left: Box::new(Expression::variable("x")),
+            right: Box::new(Expression::variable("y")),
+        }
+        .into();
         let compiled = compile(&ast, &no_constants()).unwrap();
 
         let mut args_xy: HashMap<&str, EvalInput> = HashMap::new();

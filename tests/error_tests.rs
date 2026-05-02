@@ -1,22 +1,22 @@
 use std::collections::HashMap;
 
-use mathlex::{BinaryOp, Expression, MathConstant, MathFloat, UnaryOp};
+use mathlex::{BinaryOp, ExprKind, Expression, MathConstant, MathFloat, UnaryOp};
 
 use mathlex_eval::{CompileError, EvalError, EvalInput, NumericResult, compile, eval};
 
 fn int(v: i64) -> Expression {
-    Expression::Integer(v)
+    Expression::integer(v)
 }
 
 fn var(name: &str) -> Expression {
-    Expression::Variable(name.into())
+    Expression::variable(name)
 }
 
 // === CompileError variants ===
 
 #[test]
 fn compile_error_unsupported_vector() {
-    let ast = Expression::Vector(vec![int(1)]);
+    let ast = Expression::vector(vec![int(1)]);
     let err = compile(&ast, &HashMap::new()).unwrap_err();
     match err {
         CompileError::UnsupportedExpression { variant, .. } => {
@@ -28,7 +28,7 @@ fn compile_error_unsupported_vector() {
 
 #[test]
 fn compile_error_unsupported_matrix() {
-    let ast = Expression::Matrix(vec![vec![int(1)]]);
+    let ast = Expression::matrix(vec![vec![int(1)]]);
     let err = compile(&ast, &HashMap::new()).unwrap_err();
     match err {
         CompileError::UnsupportedExpression { variant, .. } => {
@@ -40,65 +40,70 @@ fn compile_error_unsupported_matrix() {
 
 #[test]
 fn compile_error_unsupported_derivative() {
-    let ast = Expression::Derivative {
+    let ast = ExprKind::Derivative {
         expr: Box::new(var("x")),
         var: "x".into(),
         order: 1,
-    };
+    }
+    .into();
     let err = compile(&ast, &HashMap::new()).unwrap_err();
     assert!(matches!(err, CompileError::UnsupportedExpression { .. }));
 }
 
 #[test]
 fn compile_error_unsupported_integral() {
-    let ast = Expression::Integral {
+    let ast = ExprKind::Integral {
         integrand: Box::new(var("x")),
         var: "x".into(),
         bounds: None,
-    };
+    }
+    .into();
     let err = compile(&ast, &HashMap::new()).unwrap_err();
     assert!(matches!(err, CompileError::UnsupportedExpression { .. }));
 }
 
 #[test]
 fn compile_error_unsupported_nabla() {
-    let err = compile(&Expression::Nabla, &HashMap::new()).unwrap_err();
+    let err = compile(&Expression::nabla(), &HashMap::new()).unwrap_err();
     assert!(matches!(err, CompileError::UnsupportedExpression { .. }));
 }
 
 #[test]
 fn compile_error_unsupported_empty_set() {
-    let err = compile(&Expression::EmptySet, &HashMap::new()).unwrap_err();
+    let err = compile(&Expression::empty_set(), &HashMap::new()).unwrap_err();
     assert!(matches!(err, CompileError::UnsupportedExpression { .. }));
 }
 
 #[test]
 fn compile_error_unsupported_plus_minus() {
-    let ast = Expression::Binary {
+    let ast = ExprKind::Binary {
         op: BinaryOp::PlusMinus,
         left: Box::new(int(1)),
         right: Box::new(int(2)),
-    };
+    }
+    .into();
     let err = compile(&ast, &HashMap::new()).unwrap_err();
     assert!(matches!(err, CompileError::UnsupportedExpression { .. }));
 }
 
 #[test]
 fn compile_error_unsupported_transpose() {
-    let ast = Expression::Unary {
+    let ast = ExprKind::Unary {
         op: UnaryOp::Transpose,
         operand: Box::new(int(1)),
-    };
+    }
+    .into();
     let err = compile(&ast, &HashMap::new()).unwrap_err();
     assert!(matches!(err, CompileError::UnsupportedExpression { .. }));
 }
 
 #[test]
 fn compile_error_unknown_function() {
-    let ast = Expression::Function {
+    let ast = ExprKind::Function {
         name: "nonexistent_fn".into(),
         args: vec![int(1)],
-    };
+    }
+    .into();
     let err = compile(&ast, &HashMap::new()).unwrap_err();
     match err {
         CompileError::UnknownFunction { name } => {
@@ -110,10 +115,11 @@ fn compile_error_unknown_function() {
 
 #[test]
 fn compile_error_arity_mismatch() {
-    let ast = Expression::Function {
+    let ast = ExprKind::Function {
         name: "sin".into(),
         args: vec![int(1), int(2)],
-    };
+    }
+    .into();
     let err = compile(&ast, &HashMap::new()).unwrap_err();
     match err {
         CompileError::ArityMismatch {
@@ -131,30 +137,32 @@ fn compile_error_arity_mismatch() {
 
 #[test]
 fn compile_error_non_integer_bounds() {
-    let ast = Expression::Sum {
+    let ast = ExprKind::Sum {
         index: "k".into(),
-        lower: Box::new(Expression::Float(MathFloat::from(1.5))),
+        lower: Box::new(Expression::float(MathFloat::from(1.5))),
         upper: Box::new(int(5)),
         body: Box::new(var("k")),
-    };
+    }
+    .into();
     let err = compile(&ast, &HashMap::new()).unwrap_err();
     assert!(matches!(err, CompileError::NonIntegerBounds { .. }));
 }
 
 #[test]
 fn compile_error_division_by_zero() {
-    let ast = Expression::Binary {
+    let ast = ExprKind::Binary {
         op: BinaryOp::Div,
         left: Box::new(int(1)),
         right: Box::new(int(0)),
-    };
+    }
+    .into();
     let err = compile(&ast, &HashMap::new()).unwrap_err();
     assert!(matches!(err, CompileError::DivisionByZero));
 }
 
 #[test]
 fn compile_error_quaternion_constant() {
-    let ast = Expression::Constant(MathConstant::J);
+    let ast = Expression::constant(MathConstant::J);
     let err = compile(&ast, &HashMap::new()).unwrap_err();
     assert!(matches!(err, CompileError::UnsupportedExpression { .. }));
 }
@@ -163,11 +171,12 @@ fn compile_error_quaternion_constant() {
 
 #[test]
 fn eval_error_unknown_argument() {
-    let ast = Expression::Binary {
+    let ast = ExprKind::Binary {
         op: BinaryOp::Add,
         left: Box::new(var("x")),
         right: Box::new(int(1)),
-    };
+    }
+    .into();
     let compiled = compile(&ast, &HashMap::new()).unwrap();
     let mut args = HashMap::new();
     args.insert("x", EvalInput::Scalar(1.0));
@@ -181,11 +190,12 @@ fn eval_error_unknown_argument() {
 
 #[test]
 fn eval_error_missing_argument() {
-    let ast = Expression::Binary {
+    let ast = ExprKind::Binary {
         op: BinaryOp::Add,
         left: Box::new(var("x")),
         right: Box::new(var("y")),
-    };
+    }
+    .into();
     let compiled = compile(&ast, &HashMap::new()).unwrap();
     let mut args = HashMap::new();
     args.insert("x", EvalInput::Scalar(1.0));
@@ -198,11 +208,12 @@ fn eval_error_missing_argument() {
 
 #[test]
 fn eval_error_division_by_zero() {
-    let ast = Expression::Binary {
+    let ast = ExprKind::Binary {
         op: BinaryOp::Div,
         left: Box::new(var("x")),
         right: Box::new(var("y")),
-    };
+    }
+    .into();
     let compiled = compile(&ast, &HashMap::new()).unwrap();
     let mut args = HashMap::new();
     args.insert("x", EvalInput::Scalar(5.0));
@@ -226,11 +237,12 @@ fn eval_error_shape_mismatch_scalar_on_array() {
 #[test]
 fn eval_per_element_error_in_iterator() {
     // 1/x with x=[2, 0, 4] → [Ok(0.5), Err(DivByZero), Ok(0.25)]
-    let ast = Expression::Binary {
+    let ast = ExprKind::Binary {
         op: BinaryOp::Div,
         left: Box::new(int(1)),
         right: Box::new(var("x")),
-    };
+    }
+    .into();
     let compiled = compile(&ast, &HashMap::new()).unwrap();
     let mut args = HashMap::new();
     args.insert("x", EvalInput::from(vec![2.0, 0.0, 4.0]));

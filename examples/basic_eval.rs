@@ -2,21 +2,25 @@
 
 use std::collections::HashMap;
 
-use mathlex::{BinaryOp, Expression};
+use mathlex::{BinaryOp, ExprKind, Expression};
 
 use mathlex_eval::{EvalInput, NumericResult, compile, eval};
 
 fn main() {
     // Build AST for: 2*x + 3
-    let ast = Expression::Binary {
+    let ast = ExprKind::Binary {
         op: BinaryOp::Add,
-        left: Box::new(Expression::Binary {
-            op: BinaryOp::Mul,
-            left: Box::new(Expression::Integer(2)),
-            right: Box::new(Expression::Variable("x".into())),
-        }),
-        right: Box::new(Expression::Integer(3)),
-    };
+        left: Box::new(
+            ExprKind::Binary {
+                op: BinaryOp::Mul,
+                left: Box::new(Expression::integer(2)),
+                right: Box::new(Expression::variable("x")),
+            }
+            .into(),
+        ),
+        right: Box::new(Expression::integer(3)),
+    }
+    .into();
 
     // Compile with no constants
     let compiled = compile(&ast, &HashMap::new()).expect("compilation failed");
