@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use mathlex::{BinaryOp, Expression, MathConstant};
+use mathlex::{BinaryOp, ExprKind, Expression, MathConstant};
 use num_complex::Complex;
 
 use mathlex_eval::{EvalInput, NumericResult, compile, eval};
@@ -10,13 +10,17 @@ use mathlex_eval::{EvalInput, NumericResult, compile, eval};
 fn main() {
     // Example 1: sqrt(-1) → complex
     println!("=== sqrt(-1) ===");
-    let ast = Expression::Function {
+    let ast = ExprKind::Function {
         name: "sqrt".into(),
-        args: vec![Expression::Unary {
-            op: mathlex::UnaryOp::Neg,
-            operand: Box::new(Expression::Integer(1)),
-        }],
-    };
+        args: vec![
+            ExprKind::Unary {
+                op: mathlex::UnaryOp::Neg,
+                operand: Box::new(Expression::integer(1)),
+            }
+            .into(),
+        ],
+    }
+    .into();
     let compiled = compile(&ast, &HashMap::new()).expect("compile failed");
     let result = eval(&compiled, HashMap::new())
         .expect("eval failed")
@@ -26,15 +30,19 @@ fn main() {
 
     // Example 2: Expression using imaginary unit i
     println!("\n=== 1 + 2i ===");
-    let ast = Expression::Binary {
+    let ast = ExprKind::Binary {
         op: BinaryOp::Add,
-        left: Box::new(Expression::Integer(1)),
-        right: Box::new(Expression::Binary {
-            op: BinaryOp::Mul,
-            left: Box::new(Expression::Integer(2)),
-            right: Box::new(Expression::Constant(MathConstant::I)),
-        }),
-    };
+        left: Box::new(Expression::integer(1)),
+        right: Box::new(
+            ExprKind::Binary {
+                op: BinaryOp::Mul,
+                left: Box::new(Expression::integer(2)),
+                right: Box::new(Expression::constant(MathConstant::I)),
+            }
+            .into(),
+        ),
+    }
+    .into();
     let compiled = compile(&ast, &HashMap::new()).expect("compile failed");
     println!("is_complex: {}", compiled.is_complex());
     let result = eval(&compiled, HashMap::new())
@@ -45,11 +53,12 @@ fn main() {
 
     // Example 3: Evaluate with complex argument
     println!("\n=== x^2 with x = 1+i ===");
-    let ast = Expression::Binary {
+    let ast = ExprKind::Binary {
         op: BinaryOp::Pow,
-        left: Box::new(Expression::Variable("x".into())),
-        right: Box::new(Expression::Integer(2)),
-    };
+        left: Box::new(Expression::variable("x")),
+        right: Box::new(Expression::integer(2)),
+    }
+    .into();
     let compiled = compile(&ast, &HashMap::new()).expect("compile failed");
     let mut args = HashMap::new();
     args.insert("x", EvalInput::Complex(Complex::new(1.0, 1.0)));
@@ -62,13 +71,17 @@ fn main() {
 
     // Example 4: ln(-1) = iπ
     println!("\n=== ln(-1) ===");
-    let ast = Expression::Function {
+    let ast = ExprKind::Function {
         name: "ln".into(),
-        args: vec![Expression::Unary {
-            op: mathlex::UnaryOp::Neg,
-            operand: Box::new(Expression::Integer(1)),
-        }],
-    };
+        args: vec![
+            ExprKind::Unary {
+                op: mathlex::UnaryOp::Neg,
+                operand: Box::new(Expression::integer(1)),
+            }
+            .into(),
+        ],
+    }
+    .into();
     let compiled = compile(&ast, &HashMap::new()).expect("compile failed");
     let result = eval(&compiled, HashMap::new())
         .expect("eval failed")

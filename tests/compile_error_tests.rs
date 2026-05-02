@@ -1,19 +1,19 @@
 use std::collections::HashMap;
 
-use mathlex::{BinaryOp, MathFloat, UnaryOp};
+use mathlex::{BinaryOp, ExprKind, MathFloat, UnaryOp};
 
 use mathlex_eval::{CompileError, NumericResult, compile};
 
 fn int(v: i64) -> mathlex::Expression {
-    mathlex::Expression::Integer(v)
+    mathlex::Expression::integer(v)
 }
 
 fn var(name: &str) -> mathlex::Expression {
-    mathlex::Expression::Variable(name.into())
+    mathlex::Expression::variable(name)
 }
 
 fn float(v: f64) -> mathlex::Expression {
-    mathlex::Expression::Float(MathFloat::from(v))
+    mathlex::Expression::float(MathFloat::from(v))
 }
 
 fn no_constants() -> HashMap<&'static str, NumericResult> {
@@ -31,10 +31,11 @@ fn eval_scalar_no_args(compiled: &mathlex_eval::CompiledExpr) -> NumericResult {
 
 #[test]
 fn unknown_function_error() {
-    let ast = mathlex::Expression::Function {
+    let ast = ExprKind::Function {
         name: "frobnicate".into(),
         args: vec![var("x")],
-    };
+    }
+    .into();
     let err = compile(&ast, &no_constants()).unwrap_err();
     match err {
         CompileError::UnknownFunction { name } => {
@@ -46,10 +47,11 @@ fn unknown_function_error() {
 
 #[test]
 fn unknown_function_empty_name_error() {
-    let ast = mathlex::Expression::Function {
+    let ast = ExprKind::Function {
         name: "".into(),
         args: vec![],
-    };
+    }
+    .into();
     let err = compile(&ast, &no_constants()).unwrap_err();
     assert!(matches!(err, CompileError::UnknownFunction { .. }));
 }
@@ -60,10 +62,11 @@ fn unknown_function_empty_name_error() {
 
 #[test]
 fn arity_mismatch_sin_two_args() {
-    let ast = mathlex::Expression::Function {
+    let ast = ExprKind::Function {
         name: "sin".into(),
         args: vec![var("x"), var("y")],
-    };
+    }
+    .into();
     let err = compile(&ast, &no_constants()).unwrap_err();
     match err {
         CompileError::ArityMismatch {
@@ -81,10 +84,11 @@ fn arity_mismatch_sin_two_args() {
 
 #[test]
 fn arity_mismatch_atan2_one_arg() {
-    let ast = mathlex::Expression::Function {
+    let ast = ExprKind::Function {
         name: "atan2".into(),
         args: vec![var("y")],
-    };
+    }
+    .into();
     let err = compile(&ast, &no_constants()).unwrap_err();
     match err {
         CompileError::ArityMismatch {
@@ -106,12 +110,13 @@ fn arity_mismatch_atan2_one_arg() {
 
 #[test]
 fn sum_float_lower_bound_rejected() {
-    let ast = mathlex::Expression::Sum {
+    let ast = ExprKind::Sum {
         index: "k".into(),
         lower: Box::new(float(1.5)),
         upper: Box::new(int(5)),
         body: Box::new(var("k")),
-    };
+    }
+    .into();
     let err = compile(&ast, &no_constants()).unwrap_err();
     match err {
         CompileError::NonIntegerBounds { construct, .. } => {
@@ -123,24 +128,26 @@ fn sum_float_lower_bound_rejected() {
 
 #[test]
 fn sum_float_upper_bound_rejected() {
-    let ast = mathlex::Expression::Sum {
+    let ast = ExprKind::Sum {
         index: "k".into(),
         lower: Box::new(int(1)),
         upper: Box::new(float(4.9)),
         body: Box::new(var("k")),
-    };
+    }
+    .into();
     let err = compile(&ast, &no_constants()).unwrap_err();
     assert!(matches!(err, CompileError::NonIntegerBounds { .. }));
 }
 
 #[test]
 fn product_float_lower_bound_rejected() {
-    let ast = mathlex::Expression::Product {
+    let ast = ExprKind::Product {
         index: "k".into(),
         lower: Box::new(float(0.5)),
         upper: Box::new(int(4)),
         body: Box::new(var("k")),
-    };
+    }
+    .into();
     let err = compile(&ast, &no_constants()).unwrap_err();
     match err {
         CompileError::NonIntegerBounds { construct, .. } => {
@@ -152,12 +159,13 @@ fn product_float_lower_bound_rejected() {
 
 #[test]
 fn sum_integer_bounds_accepted() {
-    let ast = mathlex::Expression::Sum {
+    let ast = ExprKind::Sum {
         index: "k".into(),
         lower: Box::new(int(1)),
         upper: Box::new(int(5)),
         body: Box::new(var("k")),
-    };
+    }
+    .into();
     assert!(compile(&ast, &no_constants()).is_ok());
 }
 
@@ -167,16 +175,20 @@ fn sum_integer_bounds_accepted() {
 
 #[test]
 fn sum_index_shadows_outer_variable_of_same_name() {
-    let ast = mathlex::Expression::Binary {
+    let ast = ExprKind::Binary {
         op: BinaryOp::Add,
         left: Box::new(var("x")),
-        right: Box::new(mathlex::Expression::Sum {
-            index: "x".into(),
-            lower: Box::new(int(1)),
-            upper: Box::new(int(3)),
-            body: Box::new(var("x")),
-        }),
-    };
+        right: Box::new(
+            ExprKind::Sum {
+                index: "x".into(),
+                lower: Box::new(int(1)),
+                upper: Box::new(int(3)),
+                body: Box::new(var("x")),
+            }
+            .into(),
+        ),
+    }
+    .into();
     let compiled = compile(&ast, &no_constants()).unwrap();
     assert_eq!(compiled.argument_names(), &["x"]);
 }
@@ -184,12 +196,13 @@ fn sum_index_shadows_outer_variable_of_same_name() {
 #[test]
 fn sum_index_scoping_eval_correctness() {
     use approx::assert_abs_diff_eq;
-    let ast = mathlex::Expression::Sum {
+    let ast = ExprKind::Sum {
         index: "k".into(),
         lower: Box::new(int(1)),
         upper: Box::new(int(4)),
         body: Box::new(var("k")),
-    };
+    }
+    .into();
     let compiled = compile(&ast, &no_constants()).unwrap();
     assert!(compiled.argument_names().is_empty());
     let result = eval_scalar_no_args(&compiled);
@@ -199,12 +212,13 @@ fn sum_index_scoping_eval_correctness() {
 #[test]
 fn product_index_scoping_eval_correctness() {
     use approx::assert_abs_diff_eq;
-    let ast = mathlex::Expression::Product {
+    let ast = ExprKind::Product {
         index: "k".into(),
         lower: Box::new(int(1)),
         upper: Box::new(int(4)),
         body: Box::new(var("k")),
-    };
+    }
+    .into();
     let compiled = compile(&ast, &no_constants()).unwrap();
     assert!(compiled.argument_names().is_empty());
     let result = eval_scalar_no_args(&compiled);
@@ -213,16 +227,20 @@ fn product_index_scoping_eval_correctness() {
 
 #[test]
 fn sum_index_does_not_leak_outside_scope() {
-    let ast = mathlex::Expression::Binary {
+    let ast = ExprKind::Binary {
         op: BinaryOp::Add,
         left: Box::new(var("x")),
-        right: Box::new(mathlex::Expression::Sum {
-            index: "k".into(),
-            lower: Box::new(int(1)),
-            upper: Box::new(int(3)),
-            body: Box::new(var("k")),
-        }),
-    };
+        right: Box::new(
+            ExprKind::Sum {
+                index: "k".into(),
+                lower: Box::new(int(1)),
+                upper: Box::new(int(3)),
+                body: Box::new(var("k")),
+            }
+            .into(),
+        ),
+    }
+    .into();
     let compiled = compile(&ast, &no_constants()).unwrap();
     assert_eq!(compiled.argument_names(), &["x"]);
     assert!(!compiled.argument_names().contains(&"k".to_string()));
@@ -234,11 +252,12 @@ fn sum_index_does_not_leak_outside_scope() {
 
 #[test]
 fn plus_minus_rejected_as_unsupported() {
-    let ast = mathlex::Expression::Binary {
+    let ast = ExprKind::Binary {
         op: BinaryOp::PlusMinus,
         left: Box::new(int(1)),
         right: Box::new(int(2)),
-    };
+    }
+    .into();
     let err = compile(&ast, &no_constants()).unwrap_err();
     match &err {
         CompileError::UnsupportedExpression { variant, .. } => {
@@ -254,11 +273,12 @@ fn plus_minus_rejected_as_unsupported() {
 
 #[test]
 fn minus_plus_rejected_as_unsupported() {
-    let ast = mathlex::Expression::Binary {
+    let ast = ExprKind::Binary {
         op: BinaryOp::MinusPlus,
         left: Box::new(int(3)),
         right: Box::new(int(1)),
-    };
+    }
+    .into();
     let err = compile(&ast, &no_constants()).unwrap_err();
     match &err {
         CompileError::UnsupportedExpression { variant, .. } => {
@@ -278,10 +298,11 @@ fn minus_plus_rejected_as_unsupported() {
 
 #[test]
 fn transpose_rejected_as_unsupported() {
-    let ast = mathlex::Expression::Unary {
+    let ast = ExprKind::Unary {
         op: UnaryOp::Transpose,
         operand: Box::new(int(1)),
-    };
+    }
+    .into();
     let err = compile(&ast, &no_constants()).unwrap_err();
     match &err {
         CompileError::UnsupportedExpression { variant, .. } => {

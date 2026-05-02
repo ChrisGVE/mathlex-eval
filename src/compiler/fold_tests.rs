@@ -1,17 +1,17 @@
 use super::*;
 use approx::assert_abs_diff_eq;
-use mathlex::MathFloat;
+use mathlex::{ExprKind, MathFloat};
 
 fn int(v: i64) -> Expression {
-    Expression::Integer(v)
+    Expression::integer(v)
 }
 
 fn var(name: &str) -> Expression {
-    Expression::Variable(name.into())
+    Expression::variable(name)
 }
 
 fn float(v: f64) -> Expression {
-    Expression::Float(MathFloat::from(v))
+    Expression::float(MathFloat::from(v))
 }
 
 fn empty_constants() -> HashMap<&'static str, NumericResult> {
@@ -40,22 +40,24 @@ fn fold_variable_becomes_argument() {
 
 #[test]
 fn fold_two_variables_get_distinct_indices() {
-    let ast = Expression::Binary {
+    let ast = ExprKind::Binary {
         op: mathlex::BinaryOp::Add,
         left: Box::new(var("x")),
         right: Box::new(var("y")),
-    };
+    }
+    .into();
     let expr = fold(&ast, &empty_constants()).unwrap();
     assert_eq!(expr.argument_names(), &["x", "y"]);
 }
 
 #[test]
 fn fold_same_variable_reuses_index() {
-    let ast = Expression::Binary {
+    let ast = ExprKind::Binary {
         op: mathlex::BinaryOp::Add,
         left: Box::new(var("x")),
         right: Box::new(var("x")),
-    };
+    }
+    .into();
     let expr = fold(&ast, &empty_constants()).unwrap();
     assert_eq!(expr.argument_names(), &["x"]);
 }
@@ -71,7 +73,7 @@ fn fold_constant_substitution() {
 
 #[test]
 fn fold_pi_constant() {
-    let ast = Expression::Constant(MathConstant::Pi);
+    let ast = Expression::constant(MathConstant::Pi);
     let expr = fold(&ast, &empty_constants()).unwrap();
     if let CompiledNode::Literal(v) = expr.root {
         assert_abs_diff_eq!(v, std::f64::consts::PI, epsilon = 1e-15);
@@ -82,7 +84,7 @@ fn fold_pi_constant() {
 
 #[test]
 fn fold_e_constant() {
-    let ast = Expression::Constant(MathConstant::E);
+    let ast = Expression::constant(MathConstant::E);
     let expr = fold(&ast, &empty_constants()).unwrap();
     if let CompiledNode::Literal(v) = expr.root {
         assert_abs_diff_eq!(v, std::f64::consts::E, epsilon = 1e-15);
@@ -93,7 +95,7 @@ fn fold_e_constant() {
 
 #[test]
 fn fold_imaginary_unit() {
-    let ast = Expression::Constant(MathConstant::I);
+    let ast = Expression::constant(MathConstant::I);
     let expr = fold(&ast, &empty_constants()).unwrap();
     assert!(matches!(
         expr.root,
@@ -104,11 +106,12 @@ fn fold_imaginary_unit() {
 
 #[test]
 fn fold_constant_expression_folded() {
-    let ast = Expression::Binary {
+    let ast = ExprKind::Binary {
         op: mathlex::BinaryOp::Mul,
         left: Box::new(int(2)),
-        right: Box::new(Expression::Constant(MathConstant::Pi)),
-    };
+        right: Box::new(Expression::constant(MathConstant::Pi)),
+    }
+    .into();
     let expr = fold(&ast, &empty_constants()).unwrap();
     if let CompiledNode::Literal(v) = expr.root {
         assert_abs_diff_eq!(v, 2.0 * std::f64::consts::PI, epsilon = 1e-15);
@@ -119,54 +122,59 @@ fn fold_constant_expression_folded() {
 
 #[test]
 fn fold_mixed_constant_variable_not_folded() {
-    let ast = Expression::Binary {
+    let ast = ExprKind::Binary {
         op: mathlex::BinaryOp::Add,
         left: Box::new(var("x")),
         right: Box::new(int(1)),
-    };
+    }
+    .into();
     let expr = fold(&ast, &empty_constants()).unwrap();
     assert!(matches!(expr.root, CompiledNode::Binary { .. }));
 }
 
 #[test]
 fn fold_division_by_zero_error() {
-    let ast = Expression::Binary {
+    let ast = ExprKind::Binary {
         op: mathlex::BinaryOp::Div,
         left: Box::new(int(1)),
         right: Box::new(int(0)),
-    };
+    }
+    .into();
     let err = fold(&ast, &empty_constants()).unwrap_err();
     assert!(matches!(err, CompileError::DivisionByZero));
 }
 
 #[test]
 fn fold_unknown_function_error() {
-    let ast = Expression::Function {
+    let ast = ExprKind::Function {
         name: "foobar".into(),
         args: vec![int(1)],
-    };
+    }
+    .into();
     let err = fold(&ast, &empty_constants()).unwrap_err();
     assert!(matches!(err, CompileError::UnknownFunction { .. }));
 }
 
 #[test]
 fn fold_arity_mismatch_error() {
-    let ast = Expression::Function {
+    let ast = ExprKind::Function {
         name: "sin".into(),
         args: vec![int(1), int(2)],
-    };
+    }
+    .into();
     let err = fold(&ast, &empty_constants()).unwrap_err();
     assert!(matches!(err, CompileError::ArityMismatch { .. }));
 }
 
 #[test]
 fn fold_sum_basic() {
-    let ast = Expression::Sum {
+    let ast = ExprKind::Sum {
         index: "k".into(),
         lower: Box::new(int(1)),
         upper: Box::new(int(5)),
         body: Box::new(var("k")),
-    };
+    }
+    .into();
     let expr = fold(&ast, &empty_constants()).unwrap();
     assert!(matches!(
         expr.root,
@@ -181,16 +189,20 @@ fn fold_sum_basic() {
 
 #[test]
 fn fold_sum_index_shadows_variable() {
-    let ast = Expression::Binary {
+    let ast = ExprKind::Binary {
         op: mathlex::BinaryOp::Add,
         left: Box::new(var("x")),
-        right: Box::new(Expression::Sum {
-            index: "x".into(),
-            lower: Box::new(int(1)),
-            upper: Box::new(int(3)),
-            body: Box::new(var("x")),
-        }),
-    };
+        right: Box::new(
+            ExprKind::Sum {
+                index: "x".into(),
+                lower: Box::new(int(1)),
+                upper: Box::new(int(3)),
+                body: Box::new(var("x")),
+            }
+            .into(),
+        ),
+    }
+    .into();
     let expr = fold(&ast, &empty_constants()).unwrap();
     assert_eq!(expr.argument_names(), &["x"]);
     if let CompiledNode::Binary { right, .. } = &expr.root {
@@ -206,22 +218,24 @@ fn fold_sum_index_shadows_variable() {
 
 #[test]
 fn fold_sum_non_integer_bounds_error() {
-    let ast = Expression::Sum {
+    let ast = ExprKind::Sum {
         index: "k".into(),
         lower: Box::new(float(1.5)),
         upper: Box::new(int(5)),
         body: Box::new(var("k")),
-    };
+    }
+    .into();
     let err = fold(&ast, &empty_constants()).unwrap_err();
     assert!(matches!(err, CompileError::NonIntegerBounds { .. }));
 }
 
 #[test]
 fn fold_rational() {
-    let ast = Expression::Rational {
+    let ast = ExprKind::Rational {
         numerator: Box::new(int(3)),
         denominator: Box::new(int(4)),
-    };
+    }
+    .into();
     let expr = fold(&ast, &empty_constants()).unwrap();
     if let CompiledNode::Literal(v) = expr.root {
         assert_abs_diff_eq!(v, 0.75, epsilon = 1e-15);
@@ -232,10 +246,11 @@ fn fold_rational() {
 
 #[test]
 fn fold_function_with_literal_args_folded() {
-    let ast = Expression::Function {
+    let ast = ExprKind::Function {
         name: "sin".into(),
         args: vec![int(0)],
-    };
+    }
+    .into();
     let expr = fold(&ast, &empty_constants()).unwrap();
     if let CompiledNode::Literal(v) = expr.root {
         assert_abs_diff_eq!(v, 0.0, epsilon = 1e-15);
@@ -246,20 +261,22 @@ fn fold_function_with_literal_args_folded() {
 
 #[test]
 fn fold_function_with_variable_args_not_folded() {
-    let ast = Expression::Function {
+    let ast = ExprKind::Function {
         name: "sin".into(),
         args: vec![var("x")],
-    };
+    }
+    .into();
     let expr = fold(&ast, &empty_constants()).unwrap();
     assert!(matches!(expr.root, CompiledNode::Function { .. }));
 }
 
 #[test]
 fn fold_factorial() {
-    let ast = Expression::Unary {
+    let ast = ExprKind::Unary {
         op: mathlex::UnaryOp::Factorial,
         operand: Box::new(int(5)),
-    };
+    }
+    .into();
     let expr = fold(&ast, &empty_constants()).unwrap();
     if let CompiledNode::Literal(v) = expr.root {
         assert_abs_diff_eq!(v, 120.0, epsilon = 1e-10);
@@ -270,20 +287,22 @@ fn fold_factorial() {
 
 #[test]
 fn fold_negation() {
-    let ast = Expression::Unary {
+    let ast = ExprKind::Unary {
         op: mathlex::UnaryOp::Neg,
         operand: Box::new(int(5)),
-    };
+    }
+    .into();
     let expr = fold(&ast, &empty_constants()).unwrap();
     assert!(matches!(expr.root, CompiledNode::Literal(v) if v == -5.0));
 }
 
 #[test]
 fn fold_pos_is_identity() {
-    let ast = Expression::Unary {
+    let ast = ExprKind::Unary {
         op: mathlex::UnaryOp::Pos,
         operand: Box::new(int(5)),
-    };
+    }
+    .into();
     let expr = fold(&ast, &empty_constants()).unwrap();
     assert!(matches!(expr.root, CompiledNode::Literal(v) if v == 5.0));
 }

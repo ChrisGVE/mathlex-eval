@@ -10,7 +10,7 @@
 use std::collections::HashMap;
 
 use approx::assert_abs_diff_eq;
-use mathlex::{BinaryOp, Expression};
+use mathlex::{BinaryOp, ExprKind, Expression};
 
 use mathlex_eval::{EvalError, EvalInput, NumericResult, compile, eval};
 
@@ -19,43 +19,47 @@ use mathlex_eval::{EvalError, EvalInput, NumericResult, compile, eval};
 // ---------------------------------------------------------------------------
 
 fn var(name: &str) -> Expression {
-    Expression::Variable(name.into())
+    Expression::variable(name)
 }
 
 fn int(v: i64) -> Expression {
-    Expression::Integer(v)
+    Expression::integer(v)
 }
 
 /// Build the AST for `x^2 + y`.
 fn ast_x_sq_plus_y() -> Expression {
-    let x_sq = Expression::Binary {
+    let x_sq = ExprKind::Binary {
         op: BinaryOp::Pow,
         left: Box::new(var("x")),
         right: Box::new(int(2)),
-    };
-    Expression::Binary {
+    }
+    .into();
+    ExprKind::Binary {
         op: BinaryOp::Add,
         left: Box::new(x_sq),
         right: Box::new(var("y")),
     }
+    .into()
 }
 
 /// Build the AST for `x + y`.
 fn ast_x_plus_y() -> Expression {
-    Expression::Binary {
+    ExprKind::Binary {
         op: BinaryOp::Add,
         left: Box::new(var("x")),
         right: Box::new(var("y")),
     }
+    .into()
 }
 
 /// Build the AST for `x * 2`.
 fn ast_x_times_two() -> Expression {
-    Expression::Binary {
+    ExprKind::Binary {
         op: BinaryOp::Mul,
         left: Box::new(var("x")),
         right: Box::new(int(2)),
     }
+    .into()
 }
 
 fn no_constants() -> HashMap<&'static str, NumericResult> {
@@ -204,11 +208,12 @@ fn scalar_broadcasts_over_array() {
 fn scalar_broadcasts_over_2d_result() {
     // x + y + c, with c as a compile-time constant; x and y both arrays
     // Use AST: x + y where c = 100 supplied as a constant
-    let ast = Expression::Binary {
+    let ast = ExprKind::Binary {
         op: BinaryOp::Add,
         left: Box::new(ast_x_plus_y()),
         right: Box::new(var("c")),
-    };
+    }
+    .into();
     let mut constants = HashMap::new();
     constants.insert("c", NumericResult::Real(100.0));
     let compiled = compile(&ast, &constants).unwrap();

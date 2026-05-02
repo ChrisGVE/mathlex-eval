@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use mathlex::{Expression, MathConstant};
+use mathlex::{ExprKind, Expression, MathConstant};
 
 use crate::compiler::ir::{BinaryOp, BuiltinFn, CompiledExpr, CompiledNode, UnaryOp};
 use crate::error::CompileError;
@@ -91,12 +91,12 @@ pub(crate) fn fold(
 }
 
 fn fold_node(ast: &Expression, ctx: &mut FoldContext) -> Result<CompiledNode, CompileError> {
-    match ast {
-        Expression::Integer(v) => Ok(CompiledNode::Literal(*v as f64)),
+    match &ast.kind {
+        ExprKind::Integer(v) => Ok(CompiledNode::Literal(*v as f64)),
 
-        Expression::Float(mf) => Ok(CompiledNode::Literal(f64::from(*mf))),
+        ExprKind::Float(mf) => Ok(CompiledNode::Literal(f64::from(*mf))),
 
-        Expression::Rational {
+        ExprKind::Rational {
             numerator,
             denominator,
         } => {
@@ -105,7 +105,7 @@ fn fold_node(ast: &Expression, ctx: &mut FoldContext) -> Result<CompiledNode, Co
             try_fold_binary(BinaryOp::Div, num, den)
         }
 
-        Expression::Complex { real, imaginary } => {
+        ExprKind::Complex { real, imaginary } => {
             ctx.has_complex = true;
             let re = fold_node(real, ctx)?;
             let im = fold_node(imaginary, ctx)?;
@@ -115,21 +115,21 @@ fn fold_node(ast: &Expression, ctx: &mut FoldContext) -> Result<CompiledNode, Co
             try_fold_binary(BinaryOp::Add, re, im_part)
         }
 
-        Expression::Variable(name) => {
+        ExprKind::Variable(name) => {
             let node = ctx.resolve_variable(name);
             Ok(node)
         }
 
-        Expression::Constant(mc) => fold_math_constant(*mc, ctx),
+        ExprKind::Constant(mc) => fold_math_constant(*mc, ctx),
 
-        Expression::Binary { op, left, right } => {
+        ExprKind::Binary { op, left, right } => {
             let bin_op = convert_binary_op(*op);
             let l = fold_node(left, ctx)?;
             let r = fold_node(right, ctx)?;
             try_fold_binary(bin_op, l, r)
         }
 
-        Expression::Unary { op, operand } => {
+        ExprKind::Unary { op, operand } => {
             let node = fold_node(operand, ctx)?;
             match op {
                 mathlex::UnaryOp::Neg => try_fold_unary(UnaryOp::Neg, node),
@@ -139,7 +139,7 @@ fn fold_node(ast: &Expression, ctx: &mut FoldContext) -> Result<CompiledNode, Co
             }
         }
 
-        Expression::Function { name, args } => {
+        ExprKind::Function { name, args } => {
             let kind = functions::resolve(name)
                 .ok_or_else(|| CompileError::UnknownFunction { name: name.clone() })?;
             let expected = functions::arity(kind);
@@ -157,14 +157,14 @@ fn fold_node(ast: &Expression, ctx: &mut FoldContext) -> Result<CompiledNode, Co
             try_fold_function(kind, compiled_args)
         }
 
-        Expression::Sum {
+        ExprKind::Sum {
             index,
             lower,
             upper,
             body,
         } => fold_sum_product(true, index, lower, upper, body, ctx),
 
-        Expression::Product {
+        ExprKind::Product {
             index,
             lower,
             upper,

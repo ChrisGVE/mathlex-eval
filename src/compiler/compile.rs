@@ -31,26 +31,27 @@ pub fn compile(
 mod tests {
     use super::*;
     use approx::assert_abs_diff_eq;
-    use mathlex::{BinaryOp, MathConstant, UnaryOp};
+    use mathlex::{BinaryOp, ExprKind, MathConstant, UnaryOp};
 
     use crate::compiler::ir::CompiledNode;
 
     fn int(v: i64) -> Expression {
-        Expression::Integer(v)
+        Expression::integer(v)
     }
 
     fn var(name: &str) -> Expression {
-        Expression::Variable(name.into())
+        Expression::variable(name)
     }
 
     #[test]
     fn compile_simple_expression() {
         // x + 1
-        let ast = Expression::Binary {
+        let ast = ExprKind::Binary {
             op: BinaryOp::Add,
             left: Box::new(var("x")),
             right: Box::new(int(1)),
-        };
+        }
+        .into();
         let compiled = compile(&ast, &HashMap::new()).unwrap();
         assert_eq!(compiled.argument_names(), &["x"]);
         assert!(!compiled.is_complex());
@@ -59,11 +60,12 @@ mod tests {
     #[test]
     fn compile_with_constants() {
         // a * x where a = 2.0
-        let ast = Expression::Binary {
+        let ast = ExprKind::Binary {
             op: BinaryOp::Mul,
             left: Box::new(var("a")),
             right: Box::new(var("x")),
-        };
+        }
+        .into();
         let mut constants = HashMap::new();
         constants.insert("a", NumericResult::Real(2.0));
         let compiled = compile(&ast, &constants).unwrap();
@@ -73,11 +75,12 @@ mod tests {
     #[test]
     fn compile_pure_constant_folds() {
         // 2 * pi → single literal
-        let ast = Expression::Binary {
+        let ast = ExprKind::Binary {
             op: BinaryOp::Mul,
             left: Box::new(int(2)),
-            right: Box::new(Expression::Constant(MathConstant::Pi)),
-        };
+            right: Box::new(Expression::constant(MathConstant::Pi)),
+        }
+        .into();
         let compiled = compile(&ast, &HashMap::new()).unwrap();
         if let CompiledNode::Literal(v) = compiled.root {
             assert_abs_diff_eq!(v, 2.0 * std::f64::consts::PI, epsilon = 1e-15);
@@ -88,35 +91,37 @@ mod tests {
 
     #[test]
     fn compile_rejects_vector() {
-        let ast = Expression::Vector(vec![int(1)]);
+        let ast = Expression::vector(vec![int(1)]);
         let err = compile(&ast, &HashMap::new()).unwrap_err();
         assert!(matches!(err, CompileError::UnsupportedExpression { .. }));
     }
 
     #[test]
     fn compile_rejects_derivative() {
-        let ast = Expression::Derivative {
+        let ast = ExprKind::Derivative {
             expr: Box::new(var("x")),
             var: "x".into(),
             order: 1,
-        };
+        }
+        .into();
         let err = compile(&ast, &HashMap::new()).unwrap_err();
         assert!(matches!(err, CompileError::UnsupportedExpression { .. }));
     }
 
     #[test]
     fn compile_complex_constant_sets_flag() {
-        let ast = Expression::Constant(MathConstant::I);
+        let ast = Expression::constant(MathConstant::I);
         let compiled = compile(&ast, &HashMap::new()).unwrap();
         assert!(compiled.is_complex());
     }
 
     #[test]
     fn compile_factorial() {
-        let ast = Expression::Unary {
+        let ast = ExprKind::Unary {
             op: UnaryOp::Factorial,
             operand: Box::new(int(5)),
-        };
+        }
+        .into();
         let compiled = compile(&ast, &HashMap::new()).unwrap();
         if let CompiledNode::Literal(v) = compiled.root {
             assert_abs_diff_eq!(v, 120.0, epsilon = 1e-10);
@@ -127,12 +132,13 @@ mod tests {
 
     #[test]
     fn compile_sum() {
-        let ast = Expression::Sum {
+        let ast = ExprKind::Sum {
             index: "k".into(),
             lower: Box::new(int(1)),
             upper: Box::new(int(10)),
             body: Box::new(var("k")),
-        };
+        }
+        .into();
         let compiled = compile(&ast, &HashMap::new()).unwrap();
         assert!(compiled.argument_names().is_empty());
     }

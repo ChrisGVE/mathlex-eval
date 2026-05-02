@@ -5,22 +5,24 @@
 
 use std::collections::HashMap;
 
-use mathlex::{BinaryOp, Expression};
+use mathlex::{BinaryOp, ExprKind, Expression};
 
 use mathlex_eval::{EvalInput, NumericResult, compile, eval};
 
 fn main() {
     // Build AST for: x^2 + y
-    let x_squared = Expression::Binary {
+    let x_squared = ExprKind::Binary {
         op: BinaryOp::Pow,
-        left: Box::new(Expression::Variable("x".into())),
-        right: Box::new(Expression::Integer(2)),
-    };
-    let ast = Expression::Binary {
+        left: Box::new(Expression::variable("x")),
+        right: Box::new(Expression::integer(2)),
+    }
+    .into();
+    let ast = ExprKind::Binary {
         op: BinaryOp::Add,
         left: Box::new(x_squared),
-        right: Box::new(Expression::Variable("y".into())),
-    };
+        right: Box::new(Expression::variable("y")),
+    }
+    .into();
 
     let compiled = compile(&ast, &HashMap::new()).expect("compilation failed");
 

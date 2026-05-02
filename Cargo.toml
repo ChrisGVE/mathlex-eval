@@ -27,7 +27,7 @@ exclude = [
 crate-type = ["staticlib", "cdylib", "lib"]
 
 [dependencies]
-mathlex = { version = "0.3", features = ["serde"] }
+mathlex = { workspace = true, features = ["serde"] }
 num-complex = { version = "0.4", features = ["serde"] }
 ndarray = "0.16"
 thiserror = "2"

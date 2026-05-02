@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use approx::assert_abs_diff_eq;
-use mathlex::{BinaryOp, Expression, MathConstant};
+use mathlex::{BinaryOp, ExprKind, Expression, MathConstant};
 use num_complex::Complex;
 
 use mathlex_eval::{EvalInput, NumericResult, compile, eval};
@@ -11,15 +11,15 @@ use mathlex_eval::{EvalInput, NumericResult, compile, eval};
 // ---------------------------------------------------------------------------
 
 fn int(v: i64) -> Expression {
-    Expression::Integer(v)
+    Expression::integer(v)
 }
 
 fn var(name: &str) -> Expression {
-    Expression::Variable(name.into())
+    Expression::variable(name)
 }
 
 fn real_const(re: f64) -> Expression {
-    Expression::Float(re.into())
+    Expression::float(re.into())
 }
 
 fn no_constants() -> HashMap<&'static str, NumericResult> {
@@ -53,11 +53,12 @@ fn assert_complex_parts(result: NumericResult, re: f64, im: f64, epsilon: f64) {
 #[test]
 fn real_add_stays_real() {
     // x + y with real scalars → NumericResult::Real
-    let ast = Expression::Binary {
+    let ast = ExprKind::Binary {
         op: BinaryOp::Add,
         left: Box::new(var("x")),
         right: Box::new(var("y")),
-    };
+    }
+    .into();
     let compiled = compile(&ast, &no_constants()).unwrap();
     assert!(!compiled.is_complex());
 
@@ -72,11 +73,12 @@ fn real_add_stays_real() {
 #[test]
 fn real_mul_stays_real() {
     // x * y with real scalars
-    let ast = Expression::Binary {
+    let ast = ExprKind::Binary {
         op: BinaryOp::Mul,
         left: Box::new(var("x")),
         right: Box::new(var("y")),
-    };
+    }
+    .into();
     let compiled = compile(&ast, &no_constants()).unwrap();
 
     let mut args = HashMap::new();
@@ -94,7 +96,7 @@ fn real_mul_stays_real() {
 #[test]
 fn imaginary_unit_constant_is_complex() {
     // Expression: i  (the imaginary unit)
-    let ast = Expression::Constant(MathConstant::I);
+    let ast = Expression::constant(MathConstant::I);
     let compiled = compile(&ast, &no_constants()).unwrap();
 
     assert!(
@@ -110,11 +112,12 @@ fn imaginary_unit_constant_is_complex() {
 #[test]
 fn imaginary_unit_added_to_real_promotes() {
     // 1 + i
-    let ast = Expression::Binary {
+    let ast = ExprKind::Binary {
         op: BinaryOp::Add,
         left: Box::new(int(1)),
-        right: Box::new(Expression::Constant(MathConstant::I)),
-    };
+        right: Box::new(Expression::constant(MathConstant::I)),
+    }
+    .into();
     let compiled = compile(&ast, &no_constants()).unwrap();
 
     let result = eval(&compiled, HashMap::new()).unwrap().scalar().unwrap();
@@ -129,13 +132,17 @@ fn imaginary_unit_added_to_real_promotes() {
 #[test]
 fn sqrt_neg_one_produces_complex() {
     // sqrt(-1) via Function AST node
-    let ast = Expression::Function {
+    let ast = ExprKind::Function {
         name: "sqrt".into(),
-        args: vec![Expression::Unary {
-            op: mathlex::UnaryOp::Neg,
-            operand: Box::new(int(1)),
-        }],
-    };
+        args: vec![
+            ExprKind::Unary {
+                op: mathlex::UnaryOp::Neg,
+                operand: Box::new(int(1)),
+            }
+            .into(),
+        ],
+    }
+    .into();
     let compiled = compile(&ast, &no_constants()).unwrap();
 
     let result = eval(&compiled, HashMap::new()).unwrap().scalar().unwrap();
@@ -149,13 +156,17 @@ fn sqrt_neg_one_produces_complex() {
 #[test]
 fn sqrt_neg_four_produces_two_i() {
     // sqrt(-4) = 2i
-    let ast = Expression::Function {
+    let ast = ExprKind::Function {
         name: "sqrt".into(),
-        args: vec![Expression::Unary {
-            op: mathlex::UnaryOp::Neg,
-            operand: Box::new(int(4)),
-        }],
-    };
+        args: vec![
+            ExprKind::Unary {
+                op: mathlex::UnaryOp::Neg,
+                operand: Box::new(int(4)),
+            }
+            .into(),
+        ],
+    }
+    .into();
     let compiled = compile(&ast, &no_constants()).unwrap();
     let result = eval(&compiled, HashMap::new()).unwrap().scalar().unwrap();
 
@@ -173,11 +184,12 @@ fn sqrt_neg_four_produces_two_i() {
 fn complex_constant_multiplication() {
     // Expression: z * w, where z and w are complex constants
     // z = 1 + 2i, w = 3 + 4i → (1+2i)(3+4i) = 3+4i+6i+8i² = -5+10i
-    let ast = Expression::Binary {
+    let ast = ExprKind::Binary {
         op: BinaryOp::Mul,
         left: Box::new(var("z")),
         right: Box::new(var("w")),
-    };
+    }
+    .into();
     let mut constants = HashMap::new();
     constants.insert("z", NumericResult::Complex(Complex::new(1.0, 2.0)));
     constants.insert("w", NumericResult::Complex(Complex::new(3.0, 4.0)));
@@ -191,11 +203,12 @@ fn complex_constant_multiplication() {
 #[test]
 fn complex_constant_addition() {
     // (2+3i) + (1-1i) = 3+2i
-    let ast = Expression::Binary {
+    let ast = ExprKind::Binary {
         op: BinaryOp::Add,
         left: Box::new(var("a")),
         right: Box::new(var("b")),
-    };
+    }
+    .into();
     let mut constants = HashMap::new();
     constants.insert("a", NumericResult::Complex(Complex::new(2.0, 3.0)));
     constants.insert("b", NumericResult::Complex(Complex::new(1.0, -1.0)));
@@ -208,21 +221,24 @@ fn complex_constant_addition() {
 
 #[test]
 fn complex_ast_node_arithmetic() {
-    // Build (2 + 3i) * (1 + 2i) via Expression::Complex AST nodes
+    // Build (2 + 3i) * (1 + 2i) via ExprKind::Complex AST nodes
     // (2+3i)(1+2i) = 2+4i+3i+6i² = 2+7i-6 = -4+7i
-    let lhs = Expression::Complex {
+    let lhs = ExprKind::Complex {
         real: Box::new(real_const(2.0)),
         imaginary: Box::new(real_const(3.0)),
-    };
-    let rhs = Expression::Complex {
+    }
+    .into();
+    let rhs = ExprKind::Complex {
         real: Box::new(real_const(1.0)),
         imaginary: Box::new(real_const(2.0)),
-    };
-    let ast = Expression::Binary {
+    }
+    .into();
+    let ast = ExprKind::Binary {
         op: BinaryOp::Mul,
         left: Box::new(lhs),
         right: Box::new(rhs),
-    };
+    }
+    .into();
     let compiled = compile(&ast, &no_constants()).unwrap();
     assert!(compiled.is_complex());
 
@@ -238,11 +254,12 @@ fn complex_ast_node_arithmetic() {
 #[test]
 fn mixed_real_and_complex_inputs() {
     // Expression: x + y, where x is real scalar and y is complex scalar at eval time
-    let ast = Expression::Binary {
+    let ast = ExprKind::Binary {
         op: BinaryOp::Add,
         left: Box::new(var("x")),
         right: Box::new(var("y")),
-    };
+    }
+    .into();
     let compiled = compile(&ast, &no_constants()).unwrap();
 
     let mut args = HashMap::new();
@@ -257,11 +274,12 @@ fn mixed_real_and_complex_inputs() {
 #[test]
 fn mixed_real_constant_and_complex_eval_input() {
     // Expression: k * x, where k is compile-time real constant and x is runtime complex
-    let ast = Expression::Binary {
+    let ast = ExprKind::Binary {
         op: BinaryOp::Mul,
         left: Box::new(var("k")),
         right: Box::new(var("x")),
-    };
+    }
+    .into();
     let mut constants = HashMap::new();
     constants.insert("k", NumericResult::Real(2.0));
     let compiled = compile(&ast, &constants).unwrap();
@@ -283,11 +301,12 @@ fn mixed_real_constant_and_complex_eval_input() {
 #[test]
 fn i_squared_simplifies_to_real() {
     // i² = -1 → the evaluator should simplify to NumericResult::Real(-1.0)
-    let ast = Expression::Binary {
+    let ast = ExprKind::Binary {
         op: BinaryOp::Mul,
-        left: Box::new(Expression::Constant(MathConstant::I)),
-        right: Box::new(Expression::Constant(MathConstant::I)),
-    };
+        left: Box::new(Expression::constant(MathConstant::I)),
+        right: Box::new(Expression::constant(MathConstant::I)),
+    }
+    .into();
     let compiled = compile(&ast, &no_constants()).unwrap();
 
     let result = eval(&compiled, HashMap::new()).unwrap().scalar().unwrap();
@@ -304,11 +323,12 @@ fn i_squared_simplifies_to_real() {
 #[test]
 fn complex_conj_product_simplifies_to_real() {
     // (1+2i) * (1-2i) = 1 - 4i² = 1 + 4 = 5  (real)
-    let ast = Expression::Binary {
+    let ast = ExprKind::Binary {
         op: BinaryOp::Mul,
         left: Box::new(var("z")),
         right: Box::new(var("w")),
-    };
+    }
+    .into();
     let mut constants = HashMap::new();
     constants.insert("z", NumericResult::Complex(Complex::new(1.0, 2.0)));
     constants.insert("w", NumericResult::Complex(Complex::new(1.0, -2.0)));
@@ -331,17 +351,18 @@ fn complex_conj_product_simplifies_to_real() {
 
 #[test]
 fn is_complex_flag_set_for_imaginary_constant() {
-    let ast = Expression::Constant(MathConstant::I);
+    let ast = Expression::constant(MathConstant::I);
     let compiled = compile(&ast, &no_constants()).unwrap();
     assert!(compiled.is_complex());
 }
 
 #[test]
 fn is_complex_flag_set_for_complex_ast_node() {
-    let ast = Expression::Complex {
+    let ast = ExprKind::Complex {
         real: Box::new(int(1)),
         imaginary: Box::new(int(2)),
-    };
+    }
+    .into();
     let compiled = compile(&ast, &no_constants()).unwrap();
     assert!(compiled.is_complex());
 }
@@ -349,11 +370,12 @@ fn is_complex_flag_set_for_complex_ast_node() {
 #[test]
 fn is_complex_flag_set_for_complex_numeric_constant() {
     // Compile x + k where k is a complex NumericResult constant
-    let ast = Expression::Binary {
+    let ast = ExprKind::Binary {
         op: BinaryOp::Add,
         left: Box::new(var("x")),
         right: Box::new(var("k")),
-    };
+    }
+    .into();
     let mut constants = HashMap::new();
     constants.insert("k", NumericResult::Complex(Complex::new(0.0, 1.0)));
     let compiled = compile(&ast, &constants).unwrap();
@@ -363,11 +385,12 @@ fn is_complex_flag_set_for_complex_numeric_constant() {
 #[test]
 fn is_complex_flag_not_set_for_pure_real_expression() {
     // x + 1 has no imaginary component
-    let ast = Expression::Binary {
+    let ast = ExprKind::Binary {
         op: BinaryOp::Add,
         left: Box::new(var("x")),
         right: Box::new(int(1)),
-    };
+    }
+    .into();
     let compiled = compile(&ast, &no_constants()).unwrap();
     assert!(!compiled.is_complex());
 }
@@ -379,13 +402,17 @@ fn is_complex_flag_not_set_for_pure_real_expression() {
 #[test]
 fn ln_negative_one_is_i_pi() {
     // ln(-1) = iπ  (principal branch)
-    let ast = Expression::Function {
+    let ast = ExprKind::Function {
         name: "ln".into(),
-        args: vec![Expression::Unary {
-            op: mathlex::UnaryOp::Neg,
-            operand: Box::new(int(1)),
-        }],
-    };
+        args: vec![
+            ExprKind::Unary {
+                op: mathlex::UnaryOp::Neg,
+                operand: Box::new(int(1)),
+            }
+            .into(),
+        ],
+    }
+    .into();
     let compiled = compile(&ast, &no_constants()).unwrap();
     let result = eval(&compiled, HashMap::new()).unwrap().scalar().unwrap();
 
@@ -398,13 +425,17 @@ fn ln_negative_one_is_i_pi() {
 #[test]
 fn ln_negative_e_is_one_plus_i_pi() {
     // ln(-e) = 1 + iπ
-    let ast = Expression::Function {
+    let ast = ExprKind::Function {
         name: "ln".into(),
-        args: vec![Expression::Unary {
-            op: mathlex::UnaryOp::Neg,
-            operand: Box::new(Expression::Constant(MathConstant::E)),
-        }],
-    };
+        args: vec![
+            ExprKind::Unary {
+                op: mathlex::UnaryOp::Neg,
+                operand: Box::new(Expression::constant(MathConstant::E)),
+            }
+            .into(),
+        ],
+    }
+    .into();
     let compiled = compile(&ast, &no_constants()).unwrap();
     let result = eval(&compiled, HashMap::new()).unwrap().scalar().unwrap();
 

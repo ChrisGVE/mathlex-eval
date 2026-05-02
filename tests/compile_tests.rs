@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use approx::assert_abs_diff_eq;
-use mathlex::{BinaryOp, Direction, MathConstant, MathFloat, UnaryOp};
+use mathlex::{BinaryOp, Direction, ExprKind, MathConstant, MathFloat, UnaryOp};
 
 use mathlex_eval::{CompileError, EvalInput, NumericResult, compile, eval};
 
@@ -10,15 +10,15 @@ use mathlex_eval::{CompileError, EvalInput, NumericResult, compile, eval};
 // ---------------------------------------------------------------------------
 
 fn int(v: i64) -> mathlex::Expression {
-    mathlex::Expression::Integer(v)
+    mathlex::Expression::integer(v)
 }
 
 fn var(name: &str) -> mathlex::Expression {
-    mathlex::Expression::Variable(name.into())
+    mathlex::Expression::variable(name)
 }
 
 fn float(v: f64) -> mathlex::Expression {
-    mathlex::Expression::Float(MathFloat::from(v))
+    mathlex::Expression::float(MathFloat::from(v))
 }
 
 fn no_constants() -> HashMap<&'static str, NumericResult> {
@@ -70,41 +70,45 @@ fn compile_variable_becomes_argument() {
 
 #[test]
 fn compile_binary_add_two_variables() {
-    let ast = mathlex::Expression::Binary {
+    let ast = ExprKind::Binary {
         op: BinaryOp::Add,
         left: Box::new(var("x")),
         right: Box::new(var("y")),
-    };
+    }
+    .into();
     let compiled = compile(&ast, &no_constants()).unwrap();
     assert_eq!(compiled.argument_names(), &["x", "y"]);
 }
 
 #[test]
 fn compile_unary_neg_variable() {
-    let ast = mathlex::Expression::Unary {
+    let ast = ExprKind::Unary {
         op: UnaryOp::Neg,
         operand: Box::new(var("x")),
-    };
+    }
+    .into();
     let compiled = compile(&ast, &no_constants()).unwrap();
     assert_eq!(compiled.argument_names(), &["x"]);
 }
 
 #[test]
 fn compile_unary_factorial_literal() {
-    let ast = mathlex::Expression::Unary {
+    let ast = ExprKind::Unary {
         op: UnaryOp::Factorial,
         operand: Box::new(int(4)),
-    };
+    }
+    .into();
     let compiled = compile(&ast, &no_constants()).unwrap();
     assert!(compiled.argument_names().is_empty());
 }
 
 #[test]
 fn compile_function_sin_variable() {
-    let ast = mathlex::Expression::Function {
+    let ast = ExprKind::Function {
         name: "sin".into(),
         args: vec![var("x")],
-    };
+    }
+    .into();
     let compiled = compile(&ast, &no_constants()).unwrap();
     assert_eq!(compiled.argument_names(), &["x"]);
 }
@@ -129,62 +133,66 @@ fn assert_unsupported(ast: &mathlex::Expression, expected_variant: &str) {
 
 #[test]
 fn unsupported_vector() {
-    assert_unsupported(&mathlex::Expression::Vector(vec![int(1)]), "Vector");
+    assert_unsupported(&mathlex::Expression::vector(vec![int(1)]), "Vector");
 }
 
 #[test]
 fn unsupported_matrix() {
-    assert_unsupported(&mathlex::Expression::Matrix(vec![vec![int(1)]]), "Matrix");
+    assert_unsupported(&mathlex::Expression::matrix(vec![vec![int(1)]]), "Matrix");
 }
 
 #[test]
 fn unsupported_derivative() {
-    let ast = mathlex::Expression::Derivative {
+    let ast = ExprKind::Derivative {
         expr: Box::new(var("x")),
         var: "x".into(),
         order: 1,
-    };
+    }
+    .into();
     assert_unsupported(&ast, "Derivative");
 }
 
 #[test]
 fn unsupported_integral() {
-    let ast = mathlex::Expression::Integral {
+    let ast = ExprKind::Integral {
         integrand: Box::new(var("x")),
         var: "x".into(),
         bounds: None,
-    };
+    }
+    .into();
     assert_unsupported(&ast, "Integral");
 }
 
 #[test]
 fn unsupported_limit() {
-    let ast = mathlex::Expression::Limit {
+    let ast = ExprKind::Limit {
         expr: Box::new(var("x")),
         var: "x".into(),
         to: Box::new(int(0)),
         direction: Direction::Both,
-    };
+    }
+    .into();
     assert_unsupported(&ast, "Limit");
 }
 
 #[test]
 fn unsupported_equation() {
-    let ast = mathlex::Expression::Equation {
+    let ast = ExprKind::Equation {
         left: Box::new(var("x")),
         right: Box::new(int(5)),
-    };
+    }
+    .into();
     assert_unsupported(&ast, "Equation");
 }
 
 #[test]
 fn unsupported_nabla() {
-    assert_unsupported(&mathlex::Expression::Nabla, "Nabla");
+    assert_unsupported(&mathlex::Expression::nabla(), "Nabla");
 }
 
 #[test]
 fn unsupported_empty_set() {
-    assert_unsupported(&mathlex::Expression::EmptySet, "EmptySet");
+    assert_unsupported(&mathlex::Expression::empty_set(), "EmptySet");
 }
 
 // ---------------------------------------------------------------------------
@@ -193,11 +201,12 @@ fn unsupported_empty_set() {
 
 #[test]
 fn constant_substitution_removes_from_arguments() {
-    let ast = mathlex::Expression::Binary {
+    let ast = ExprKind::Binary {
         op: BinaryOp::Mul,
         left: Box::new(var("a")),
         right: Box::new(var("x")),
-    };
+    }
+    .into();
     let mut constants = HashMap::new();
     constants.insert("a", NumericResult::Real(3.0));
     let compiled = compile(&ast, &constants).unwrap();
@@ -206,11 +215,12 @@ fn constant_substitution_removes_from_arguments() {
 
 #[test]
 fn constant_substitution_eval_round_trip() {
-    let ast = mathlex::Expression::Binary {
+    let ast = ExprKind::Binary {
         op: BinaryOp::Mul,
         left: Box::new(var("a")),
         right: Box::new(var("x")),
-    };
+    }
+    .into();
     let mut constants = HashMap::new();
     constants.insert("a", NumericResult::Real(4.0));
     let compiled = compile(&ast, &constants).unwrap();
@@ -234,7 +244,7 @@ fn complex_constant_substitution_sets_is_complex() {
 
 #[test]
 fn math_constant_pi_no_arguments() {
-    let ast = mathlex::Expression::Constant(MathConstant::Pi);
+    let ast = mathlex::Expression::constant(MathConstant::Pi);
     let compiled = compile(&ast, &no_constants()).unwrap();
     assert!(compiled.argument_names().is_empty());
     assert!(!compiled.is_complex());
@@ -242,7 +252,7 @@ fn math_constant_pi_no_arguments() {
 
 #[test]
 fn math_constant_pi_eval_value() {
-    let ast = mathlex::Expression::Constant(MathConstant::Pi);
+    let ast = mathlex::Expression::constant(MathConstant::Pi);
     let compiled = compile(&ast, &no_constants()).unwrap();
     let result = eval_scalar_no_args(&compiled);
     assert_abs_diff_eq!(
@@ -254,7 +264,7 @@ fn math_constant_pi_eval_value() {
 
 #[test]
 fn math_constant_e_eval_value() {
-    let ast = mathlex::Expression::Constant(MathConstant::E);
+    let ast = mathlex::Expression::constant(MathConstant::E);
     let compiled = compile(&ast, &no_constants()).unwrap();
     let result = eval_scalar_no_args(&compiled);
     assert_abs_diff_eq!(
@@ -266,7 +276,7 @@ fn math_constant_e_eval_value() {
 
 #[test]
 fn math_constant_i_sets_complex_flag() {
-    let ast = mathlex::Expression::Constant(MathConstant::I);
+    let ast = mathlex::Expression::constant(MathConstant::I);
     let compiled = compile(&ast, &no_constants()).unwrap();
     assert!(compiled.is_complex());
     assert!(compiled.argument_names().is_empty());
@@ -274,7 +284,7 @@ fn math_constant_i_sets_complex_flag() {
 
 #[test]
 fn math_constant_i_eval_is_imaginary_unit() {
-    let ast = mathlex::Expression::Constant(MathConstant::I);
+    let ast = mathlex::Expression::constant(MathConstant::I);
     let compiled = compile(&ast, &no_constants()).unwrap();
     let result = eval_scalar_no_args(&compiled);
     match result {
@@ -294,11 +304,12 @@ fn math_constant_i_eval_is_imaginary_unit() {
 
 #[test]
 fn constant_folding_two_times_pi() {
-    let ast = mathlex::Expression::Binary {
+    let ast = ExprKind::Binary {
         op: BinaryOp::Mul,
         left: Box::new(int(2)),
-        right: Box::new(mathlex::Expression::Constant(MathConstant::Pi)),
-    };
+        right: Box::new(mathlex::Expression::constant(MathConstant::Pi)),
+    }
+    .into();
     let compiled = compile(&ast, &no_constants()).unwrap();
     assert!(compiled.argument_names().is_empty());
     let result = eval_scalar_no_args(&compiled);
@@ -311,10 +322,11 @@ fn constant_folding_two_times_pi() {
 
 #[test]
 fn constant_folding_sin_of_zero() {
-    let ast = mathlex::Expression::Function {
+    let ast = ExprKind::Function {
         name: "sin".into(),
         args: vec![int(0)],
-    };
+    }
+    .into();
     let compiled = compile(&ast, &no_constants()).unwrap();
     assert!(compiled.argument_names().is_empty());
     let result = eval_scalar_no_args(&compiled);
@@ -323,10 +335,11 @@ fn constant_folding_sin_of_zero() {
 
 #[test]
 fn constant_folding_rational_three_quarters() {
-    let ast = mathlex::Expression::Rational {
+    let ast = ExprKind::Rational {
         numerator: Box::new(int(3)),
         denominator: Box::new(int(4)),
-    };
+    }
+    .into();
     let compiled = compile(&ast, &no_constants()).unwrap();
     assert!(compiled.argument_names().is_empty());
     let result = eval_scalar_no_args(&compiled);
