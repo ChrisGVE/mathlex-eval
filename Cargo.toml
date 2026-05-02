@@ -1,6 +1,6 @@
 [package]
 name = "mathlex-eval"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2024"
 rust-version = "1.85"
 authors = ["Christian C. Berclaz"]
@@ -27,7 +27,7 @@ exclude = [
 crate-type = ["staticlib", "cdylib", "lib"]
 
 [dependencies]
-mathlex = { workspace = true, features = ["serde"] }
+mathlex = { version = "0.4", features = ["serde"] }
 num-complex = { version = "0.4", features = ["serde"] }
 ndarray = "0.16"
 thiserror = "2"
