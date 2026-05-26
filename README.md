@@ -1,6 +1,6 @@
 # mathlex-eval
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache_2.0-blue.svg)](LICENSE)
 [![CI](https://github.com/ChrisGVE/mathlex-eval/actions/workflows/ci.yml/badge.svg)](https://github.com/ChrisGVE/mathlex-eval/actions/workflows/ci.yml)
 [![crates.io](https://img.shields.io/crates/v/mathlex-eval.svg)](https://crates.io/crates/mathlex-eval)
 [![docs.rs](https://docs.rs/mathlex-eval/badge.svg)](https://docs.rs/mathlex-eval)
@@ -127,4 +127,4 @@ Full documentation: [docs.rs/mathlex-eval](https://docs.rs/mathlex-eval)
 
 ## License
 
-MIT
+Apache License 2.0
